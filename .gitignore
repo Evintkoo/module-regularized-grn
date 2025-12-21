@@ -1,4 +1,10 @@
 /target
+/data/brain_v1_0/
+/data/processed/
+*.h5ad
+*.pkl
+*.pyc
+__pycache__/
 
 
 *.md
