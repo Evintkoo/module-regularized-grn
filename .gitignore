@@ -1,0 +1,6 @@
+/target
+
+
+*.md
+!docs/**
+!README.md
