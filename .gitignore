@@ -6,12 +6,6 @@
 *.pyc
 __pycache__/
 
-*.md
-!docs/**
-!README.md
-!PHASE*.md
-!data/README.md
-
 
 *.md
 !docs/**
