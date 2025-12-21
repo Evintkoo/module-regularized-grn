@@ -1,0 +1,17 @@
+{
+  "dorothea": {
+    "avg_targets_per_tf": 41.373985290527344,
+    "tf_count": 369,
+    "total_edges": 15267
+  },
+  "merged": {
+    "avg_targets_per_tf": 20.355670928955078,
+    "tf_count": 1164,
+    "total_edges": 23694
+  },
+  "trrust": {
+    "avg_targets_per_tf": 10.600000381469727,
+    "tf_count": 795,
+    "total_edges": 8427
+  }
+}

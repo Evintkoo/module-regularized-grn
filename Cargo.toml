@@ -3,6 +3,14 @@ name = "module-regularized-grn"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "download_priors"
+path = "src/bin/download_priors.rs"
+
+[[bin]]
+name = "process_data"
+path = "src/bin/process_data.rs"
+
 [dependencies]
 # tch = "0.17"  # Temporarily disabled due to PyTorch version incompatibility
 ndarray = "0.15"
@@ -13,3 +21,9 @@ rand = "0.8"
 rand_distr = "0.4"
 anyhow = "1.0"
 thiserror = "1.0"
+reqwest = { version = "0.11", features = ["blocking", "json"] }
+indicatif = "0.17"
+
+[lib]
+name = "module_regularized_grn"
+path = "src/lib.rs"
