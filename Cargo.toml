@@ -27,6 +27,10 @@ anyhow = "1.0"
 thiserror = "1.0"
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 indicatif = "0.17"
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tempfile = "3.8"
 
 [lib]
 name = "module_regularized_grn"
