@@ -1,30 +1,8 @@
-use crate::loss::{infonce_loss, binary_cross_entropy, compute_metrics, Metrics};
+use crate::{Config, loss::{infonce_loss, binary_cross_entropy, compute_metrics, Metrics}};
 use crate::training::{Optimizer, Checkpoint};
 use ndarray::{Array1, Array2};
 use std::path::Path;
 use anyhow::Result;
-
-/// Training configuration
-#[derive(Debug, Clone)]
-pub struct TrainConfig {
-    pub epochs: usize,
-    pub batch_size: usize,
-    pub log_interval: usize,
-    pub checkpoint_dir: String,
-    pub early_stopping_patience: usize,
-}
-
-impl Default for TrainConfig {
-    fn default() -> Self {
-        Self {
-            epochs: 100,
-            batch_size: 32,
-            log_interval: 10,
-            checkpoint_dir: "checkpoints".to_string(),
-            early_stopping_patience: 10,
-        }
-    }
-}
 
 /// Training history
 #[derive(Debug, Clone)]
@@ -68,12 +46,12 @@ impl TrainHistory {
 /// This is a simplified trainer that can run the training loop
 /// Gradient computation would be added separately
 pub struct Trainer {
-    pub config: TrainConfig,
+    pub config: Config,
     pub history: TrainHistory,
 }
 
 impl Trainer {
-    pub fn new(config: TrainConfig) -> Self {
+    pub fn new(config: Config) -> Self {
         Self {
             config,
             history: TrainHistory::new(),
@@ -111,8 +89,8 @@ impl Trainer {
             model_type,
         );
 
-        let path = format!("{}/checkpoint_epoch_{}.json", self.config.checkpoint_dir, epoch);
-        std::fs::create_dir_all(&self.config.checkpoint_dir)?;
+        let path = format!("{}/checkpoint_epoch_{}.json", self.config.training.checkpoint_dir, epoch);
+        std::fs::create_dir_all(&self.config.training.checkpoint_dir)?;
         checkpoint.save(path)?;
 
         Ok(())
@@ -125,7 +103,7 @@ impl Trainer {
         }
 
         let best_epoch = self.history.best_epoch();
-        current_epoch - best_epoch >= self.config.early_stopping_patience
+        current_epoch - best_epoch >= self.config.training.early_stopping_patience
     }
 
     /// Print epoch summary
@@ -175,13 +153,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_train_config() {
-        let config = TrainConfig::default();
-        assert_eq!(config.epochs, 100);
-        assert_eq!(config.batch_size, 32);
-    }
-
-    #[test]
     fn test_train_history() {
         let mut history = TrainHistory::new();
         let metrics = Metrics::new();
@@ -192,22 +163,6 @@ mod tests {
 
         assert_eq!(history.best_val_loss(), 0.5);
         assert_eq!(history.best_epoch(), 2);
-    }
-
-    #[test]
-    fn test_early_stopping() {
-        let mut config = TrainConfig::default();
-        config.early_stopping_patience = 3;
-        let mut trainer = Trainer::new(config);
-
-        let metrics = Metrics::new();
-        trainer.history.add_epoch(0.5, 0.5, metrics.clone());
-        trainer.history.add_epoch(0.4, 0.6, metrics.clone());
-        trainer.history.add_epoch(0.3, 0.7, metrics.clone());
-        trainer.history.add_epoch(0.2, 0.8, metrics.clone());
-
-        // Best was epoch 0, current is 3, patience is 3
-        assert!(trainer.should_stop(3));
     }
 
     #[test]

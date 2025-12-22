@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use module_regularized_grn::Config;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -6,9 +7,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
-
-const DOROTHEA_URL: &str = "https://omnipathdb.org/interactions?datasets=dorothea&fields=sources,references&license=academic";
-const TRRUST_URL: &str = "https://www.grnpedia.org/trrust/data/trrust_rawdata.human.tsv";
 
 #[derive(Debug, Serialize, Deserialize)]
 struct DorotheaInteraction {
@@ -68,13 +66,13 @@ impl PriorDatabase {
     }
 }
 
-fn download_dorothea(client: &Client) -> Result<PriorDatabase> {
+fn download_dorothea(client: &Client, config: &Config) -> Result<PriorDatabase> {
     println!("======================================================");
     println!("Downloading DoRothEA database from OmniPath...");
     println!("======================================================");
 
     let response = client
-        .get(DOROTHEA_URL)
+        .get(&config.priors.dorothea.source_url)
         .timeout(Duration::from_secs(120))
         .send()
         .context("Failed to download DoRothEA")?;
@@ -82,10 +80,10 @@ fn download_dorothea(client: &Client) -> Result<PriorDatabase> {
     let text = response.text()?;
     
     // Save raw data
-    let priors_dir = Path::new("data/priors");
+    let priors_dir = Path::new(&config.priors.base_dir);
     fs::create_dir_all(priors_dir)?;
-    fs::write(priors_dir.join("dorothea_raw.tsv"), &text)?;
-    println!("✓ Saved raw data to data/priors/dorothea_raw.tsv");
+    fs::write(&config.priors.dorothea.raw_file, &text)?;
+    println!("✓ Saved raw data to {}", config.priors.dorothea.raw_file);
 
     // Parse TSV
     let mut rdr = csv::ReaderBuilder::new()
@@ -129,13 +127,13 @@ fn download_dorothea(client: &Client) -> Result<PriorDatabase> {
     Ok(db)
 }
 
-fn download_trrust(client: &Client) -> Result<PriorDatabase> {
+fn download_trrust(client: &Client, config: &Config) -> Result<PriorDatabase> {
     println!("\n======================================================");
     println!("Downloading TRRUST v2 database...");
     println!("======================================================");
 
     let response = client
-        .get(TRRUST_URL)
+        .get(&config.priors.trrust.source_url)
         .timeout(Duration::from_secs(60))
         .send()
         .context("Failed to download TRRUST")?;
@@ -143,9 +141,8 @@ fn download_trrust(client: &Client) -> Result<PriorDatabase> {
     let text = response.text()?;
     
     // Save raw data
-    let priors_dir = Path::new("data/priors");
-    fs::write(priors_dir.join("trrust_raw.tsv"), &text)?;
-    println!("✓ Saved raw data to data/priors/trrust_raw.tsv");
+    fs::write(&config.priors.trrust.raw_file, &text)?;
+    println!("✓ Saved raw data to {}", config.priors.trrust.raw_file);
 
     // Parse TSV (no header: TF, Target, Regulation, PMID)
     let mut rdr = csv::ReaderBuilder::new()
@@ -194,25 +191,23 @@ fn download_trrust(client: &Client) -> Result<PriorDatabase> {
     Ok(db)
 }
 
-fn save_priors(dorothea: &PriorDatabase, trrust: &PriorDatabase, merged: &PriorDatabase) -> Result<()> {
+fn save_priors(dorothea: &PriorDatabase, trrust: &PriorDatabase, merged: &PriorDatabase, config: &Config) -> Result<()> {
     println!("\n======================================================");
     println!("Saving processed priors...");
     println!("======================================================");
 
-    let priors_dir = Path::new("data/priors");
-
     // Save individual databases
     let dorothea_json = serde_json::to_string_pretty(&dorothea.tf_targets)?;
-    fs::write(priors_dir.join("dorothea_priors.json"), dorothea_json)?;
-    println!("✓ Saved data/priors/dorothea_priors.json");
+    fs::write(&config.priors.dorothea.processed_file, dorothea_json)?;
+    println!("✓ Saved {}", config.priors.dorothea.processed_file);
 
     let trrust_json = serde_json::to_string_pretty(&trrust.tf_targets)?;
-    fs::write(priors_dir.join("trrust_priors.json"), trrust_json)?;
-    println!("✓ Saved data/priors/trrust_priors.json");
+    fs::write(&config.priors.trrust.processed_file, trrust_json)?;
+    println!("✓ Saved {}", config.priors.trrust.processed_file);
 
     let merged_json = serde_json::to_string_pretty(&merged.tf_targets)?;
-    fs::write(priors_dir.join("merged_priors.json"), merged_json)?;
-    println!("✓ Saved data/priors/merged_priors.json");
+    fs::write(&config.priors.merged.output_file, merged_json)?;
+    println!("✓ Saved {}", config.priors.merged.output_file);
 
     // Save statistics
     let stats = serde_json::json!({
@@ -234,8 +229,8 @@ fn save_priors(dorothea: &PriorDatabase, trrust: &PriorDatabase, merged: &PriorD
     });
 
     let stats_json = serde_json::to_string_pretty(&stats)?;
-    fs::write(priors_dir.join("priors_stats.json"), stats_json)?;
-    println!("✓ Saved data/priors/priors_stats.json");
+    fs::write(&config.priors.merged.stats_file, stats_json)?;
+    println!("✓ Saved {}", config.priors.merged.stats_file);
 
     Ok(())
 }
@@ -245,17 +240,23 @@ fn main() -> Result<()> {
     println!("TF-Target Prior Knowledge Download");
     println!("======================================================\n");
 
+    // Load configuration
+    let config = Config::load_default()
+        .context("Failed to load config.toml")?;
+    
+    println!("✓ Loaded configuration from config.toml\n");
+
     let client = Client::builder()
         .timeout(Duration::from_secs(120))
         .build()?;
 
     // Download DoRothEA
-    let dorothea = download_dorothea(&client)?;
+    let dorothea = download_dorothea(&client, &config)?;
 
     std::thread::sleep(Duration::from_secs(2)); // Rate limiting
 
     // Download TRRUST
-    let trrust = download_trrust(&client)?;
+    let trrust = download_trrust(&client, &config)?;
 
     // Merge databases
     println!("\n======================================================");
@@ -270,7 +271,7 @@ fn main() -> Result<()> {
     println!("  Avg targets per TF: {:.1}", merged.avg_targets_per_tf);
 
     // Save all
-    save_priors(&dorothea, &trrust, &merged)?;
+    save_priors(&dorothea, &trrust, &merged, &config)?;
 
     println!("\n======================================================");
     println!("✅ Prior knowledge download complete!");

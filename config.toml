@@ -1,0 +1,341 @@
+# Module-Regularized GRN Inference Configuration
+# Last Updated: 2025-12-22
+
+[project]
+name = "module-regularized-grn"
+version = "0.1.0"
+seed = 42
+
+# =============================================================================
+# Data Paths
+# =============================================================================
+
+[data]
+# Root directory for all data
+root = "data"
+
+# Brain data from CELLxGENE
+[data.brain]
+collection_id = "283d65eb-dd53-496d-adb7-7570c7caa443"
+collection_name = "brain-v1-0"
+base_dir = "data/brain_v1_0"
+metadata_file = "data/brain_v1_0/collection_metadata.json"
+
+# Downloaded H5AD files
+h5ad_files = [
+    "data/brain_v1_0/ff7d15fa-f4b6-4a0e-992e-fd0c9d088ded/local.h5ad",
+    "data/brain_v1_0/fe1a73ab-a203-45fd-84e9-0f7fd19efcbd/local.h5ad",
+    "data/brain_v1_0/fbf173f9-f809-4d84-9b65-ae205d35b523/local.h5ad",
+    "data/brain_v1_0/fa554686-fc07-44dd-b2de-b726d82d26ec/local.h5ad",
+    "data/brain_v1_0/f9034091-2e8f-4ac6-9874-e7b7eb566824/local.h5ad",
+]
+
+# Processed data outputs
+[data.processed]
+output_dir = "data/processed"
+manifest_file = "data/processed/data_manifest.json"
+pseudobulk_dir = "data/processed/pseudobulk"
+states_file = "data/processed/states.csv"
+
+# =============================================================================
+# Prior Knowledge Databases
+# =============================================================================
+
+[priors]
+base_dir = "data/priors"
+
+# DoRothEA database
+[priors.dorothea]
+raw_file = "data/priors/dorothea_raw.tsv"
+processed_file = "data/priors/dorothea_priors.json"
+source_url = "https://omnipathdb.org/interactions?datasets=dorothea"
+tf_count = 369
+edge_count = 15267
+
+# TRRUST database
+[priors.trrust]
+raw_file = "data/priors/trrust_raw.tsv"
+processed_file = "data/priors/trrust_priors.json"
+source_url = "https://www.grnpedia.org/trrust/data/trrust_rawdata.human.tsv"
+tf_count = 795
+edge_count = 8427
+
+# Merged priors
+[priors.merged]
+output_file = "data/priors/merged_priors.json"
+stats_file = "data/priors/priors_stats.json"
+tf_count = 1164
+edge_count = 23694
+
+# =============================================================================
+# Data Preprocessing Parameters
+# =============================================================================
+
+[preprocessing]
+# Minimum cells per state
+min_cells_per_state = 50
+
+# Quality control
+filter_nan = true
+filter_inf = true
+
+# Normalization
+normalize_expression = true
+log_transform = true
+scale_features = true
+
+# Gene filtering
+min_gene_expression = 0.1
+min_cells_expressing = 10
+
+# =============================================================================
+# Model Architecture
+# =============================================================================
+
+[model]
+type = "two_tower"  # Options: "two_tower", "monolithic"
+
+[model.embeddings]
+gene_embedding_dim = 128
+tf_embedding_dim = 128
+state_embedding_dim = 64
+combined_dim = 256
+
+[model.two_tower]
+# TF encoder
+tf_encoder_hidden = [256, 256]
+tf_encoder_output = 128
+tf_encoder_dropout = 0.2
+
+# Gene encoder
+gene_encoder_hidden = [256, 256]
+gene_encoder_output = 128
+gene_encoder_dropout = 0.2
+
+# Scoring function
+scoring = "dot_product"  # Options: "dot_product", "bilinear"
+temperature = 0.07
+
+[model.monolithic]
+# Baseline cross-encoder
+hidden_layers = [512, 256, 128]
+output_dim = 1
+dropout = 0.2
+
+# =============================================================================
+# Training Parameters
+# =============================================================================
+
+[training]
+# Data split
+train_ratio = 0.70
+val_ratio = 0.15
+test_ratio = 0.15
+stratify_by = "donor"
+
+# Batch and epochs
+batch_size = 256
+num_epochs = 100
+early_stopping_patience = 10
+
+# Optimizer
+optimizer = "adam"
+learning_rate = 1e-4
+weight_decay = 1e-5
+betas = [0.9, 0.999]
+
+# Learning rate scheduler
+use_scheduler = true
+scheduler_type = "cosine"  # Options: "cosine", "step", "exponential"
+warmup_epochs = 5
+
+# Gradient control
+gradient_clip_norm = 1.0
+
+# Checkpointing
+checkpoint_dir = "checkpoints"
+save_every_n_epochs = 5
+save_best_only = false
+monitor_metric = "val_loss"
+
+# =============================================================================
+# Loss Functions
+# =============================================================================
+
+[loss]
+# Contrastive loss (InfoNCE)
+use_contrastive = true
+contrastive_weight = 1.0
+num_negative_samples = 10
+
+# Reconstruction loss
+use_reconstruction = true
+reconstruction_weight = 0.3
+reconstruction_type = "mse"  # Options: "mse", "correlation"
+
+# Prior knowledge regularization
+use_prior_regularization = true
+prior_weight = 0.05
+
+# Combined loss: L = contrastive + α*reconstruction + β*prior
+
+# =============================================================================
+# Evaluation Metrics
+# =============================================================================
+
+[evaluation]
+# Enrichment analysis
+[evaluation.enrichment]
+use_gsea = true
+databases = ["dorothea", "trrust"]
+fdr_threshold = 0.05
+target_enrichment_rate = 0.70
+
+# Reproducibility metrics
+[evaluation.reproducibility]
+top_k = [10, 50, 100, 500]
+min_jaccard = 0.5
+min_correlation = 0.7
+bootstrap_iterations = 1000
+stability_threshold = 0.8
+
+# Predictive utility
+[evaluation.prediction]
+metrics = ["r2", "pearson", "spearman"]
+min_r2 = 0.3
+min_correlation = 0.5
+
+# Confidence calibration
+[evaluation.calibration]
+num_bins = 10
+max_ece = 0.1
+
+# =============================================================================
+# Experiments
+# =============================================================================
+
+[experiments]
+output_dir = "experiments"
+log_format = "json"  # Options: "json", "csv", "tensorboard"
+
+# Random seeds for reproducibility
+seeds = [42, 123, 456]
+
+# Experiments to run
+[[experiments.configs]]
+name = "two_tower_main"
+model_type = "two_tower"
+description = "Main two-tower model with full objectives"
+
+[[experiments.configs]]
+name = "monolithic_baseline"
+model_type = "monolithic"
+description = "Monolithic baseline for comparison"
+
+[[experiments.configs]]
+name = "two_tower_no_collaboration"
+model_type = "two_tower"
+use_reconstruction = false
+description = "Two-tower without reconstruction loss"
+
+[[experiments.configs]]
+name = "ablation_no_contrastive"
+model_type = "two_tower"
+use_contrastive = false
+description = "Ablation: no contrastive loss"
+
+[[experiments.configs]]
+name = "ablation_no_reconstruction"
+model_type = "two_tower"
+use_reconstruction = false
+description = "Ablation: no reconstruction loss"
+
+[[experiments.configs]]
+name = "ablation_no_priors"
+model_type = "two_tower"
+use_prior_regularization = false
+description = "Ablation: no prior knowledge regularization"
+
+# =============================================================================
+# Hyperparameter Tuning
+# =============================================================================
+
+[hyperparameter_tuning]
+method = "grid_search"  # Options: "grid_search", "random_search", "bayesian"
+num_trials = 20
+
+[hyperparameter_tuning.search_space]
+learning_rate = [1e-5, 1e-4, 1e-3]
+embedding_dim = [64, 128, 256]
+num_negative_samples = [5, 10, 20]
+dropout = [0.1, 0.2, 0.3]
+reconstruction_weight = [0.1, 0.3, 0.5]
+
+# =============================================================================
+# Output and Results
+# =============================================================================
+
+[output]
+# Directories
+results_dir = "results"
+figures_dir = "figures"
+models_dir = "models"
+
+# Result files
+[output.results]
+enrichment_scores = "results/enrichment_scores.csv"
+reproducibility_metrics = "results/reproducibility_metrics.json"
+prediction_metrics = "results/prediction_metrics.json"
+top_predictions = "results/top_predictions.csv"
+novel_edges = "results/novel_edges.csv"
+validation_hits = "results/validation_hits.csv"
+statistical_tests = "results/statistical_tests.txt"
+summary_table = "results/summary_table.csv"
+
+# Figure files
+[output.figures]
+main_results = "figures/main_results.png"
+ablation_study = "figures/ablation_study.png"
+calibration_plot = "figures/calibration_plot.png"
+training_curves = "figures/training_curves.png"
+embeddings_tsne = "figures/embeddings_tsne.png"
+performance_vs_params = "figures/performance_vs_params.png"
+stability_vs_sparsity = "figures/stability_vs_sparsity.png"
+
+# =============================================================================
+# Computational Resources
+# =============================================================================
+
+[compute]
+device = "cpu"  # Options: "cpu", "cuda", "mps"
+num_threads = 8
+use_mixed_precision = false
+
+# Memory management
+batch_accumulation_steps = 1
+max_memory_gb = 16
+
+# =============================================================================
+# Phase 1 Validation Criteria
+# =============================================================================
+
+[validation.phase1]
+min_states = 50
+min_tf_count = 500
+min_edges_per_state = 10000
+data_split_ratios = [0.70, 0.15, 0.15]
+required_tests_passing = 3
+
+# Actual achieved values
+actual_tf_count = 1164
+actual_edge_count = 23694
+tests_passing = 3
+
+# =============================================================================
+# Git and Versioning
+# =============================================================================
+
+[versioning]
+track_git_commit = true
+track_dependencies = true
+save_config_with_results = true

@@ -1,36 +1,25 @@
 use anyhow::{Context, Result};
-use module_regularized_grn::data::*;
+use module_regularized_grn::{Config, data::*};
 use serde_json;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-fn find_h5ad_files(data_dir: &Path) -> Result<Vec<PathBuf>> {
+fn find_h5ad_files(h5ad_paths: &[String]) -> Result<Vec<PathBuf>> {
     let mut files = Vec::new();
     
-    if data_dir.exists() {
-        for entry in fs::read_dir(data_dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            
-            if path.is_dir() {
-                // Look for .h5ad files in subdirectories
-                for sub_entry in fs::read_dir(&path)? {
-                    let sub_path = sub_entry?.path();
-                    if sub_path.extension().and_then(|s| s.to_str()) == Some("h5ad") {
-                        files.push(sub_path);
-                    }
-                }
-            }
+    for path_str in h5ad_paths {
+        let path = PathBuf::from(path_str);
+        if path.exists() {
+            files.push(path);
         }
     }
     
     Ok(files)
 }
 
-fn load_priors(priors_dir: &Path) -> Result<PriorKnowledge> {
-    let merged_file = priors_dir.join("merged_priors.json");
-    let content = fs::read_to_string(&merged_file)
+fn load_priors(merged_file: &str) -> Result<PriorKnowledge> {
+    let content = fs::read_to_string(merged_file)
         .context("Failed to read merged_priors.json")?;
     
     let tf_target_pairs: HashMap<String, Vec<String>> = serde_json::from_str(&content)?;
@@ -46,9 +35,14 @@ fn main() -> Result<()> {
     println!("Brain Data Processing");
     println!("======================================================\n");
 
+    // Load configuration
+    let config = Config::load_default()
+        .context("Failed to load config.toml")?;
+    
+    println!("✓ Loaded configuration from config.toml\n");
+
     // Find H5AD files
-    let data_dir = Path::new("data/brain_v1_0");
-    let h5ad_files = find_h5ad_files(data_dir)?;
+    let h5ad_files = find_h5ad_files(&config.data.brain.h5ad_files)?;
     
     println!("Found {} H5AD files:", h5ad_files.len());
     for (i, file) in h5ad_files.iter().enumerate() {
@@ -65,8 +59,7 @@ fn main() -> Result<()> {
     println!("Loading prior knowledge...");
     println!("======================================================");
     
-    let priors_dir = Path::new("data/priors");
-    let priors = load_priors(priors_dir)?;
+    let priors = load_priors(&config.priors.merged.output_file)?;
     
     println!("✓ Loaded merged priors:");
     println!("  TFs: {}", priors.tf_target_pairs.len());
@@ -93,7 +86,7 @@ fn main() -> Result<()> {
         "note": "H5AD processing requires Python/scanpy - see scripts/process_brain_data.py"
     });
 
-    let manifest_file = Path::new("data/processed/data_manifest.json");
+    let manifest_file = Path::new(&config.data.processed.manifest_file);
     fs::create_dir_all(manifest_file.parent().unwrap())?;
     fs::write(manifest_file, serde_json::to_string_pretty(&manifest)?)?;
     

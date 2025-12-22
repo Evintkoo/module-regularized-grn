@@ -1,22 +1,19 @@
-use module_regularized_grn::{TrainConfig, Trainer};
+use module_regularized_grn::{Config, Trainer};
 use anyhow::Result;
 
 fn main() -> Result<()> {
     println!("=== GRN Training Pipeline ===\n");
 
-    // Training configuration
-    let config = TrainConfig {
-        epochs: 10,
-        batch_size: 32,
-        log_interval: 2,
-        checkpoint_dir: "checkpoints".to_string(),
-        early_stopping_patience: 5,
-    };
-
+    // Load configuration from config.toml
+    let config = Config::load_default()?;
+    
+    println!("✓ Loaded configuration from config.toml\n");
+    
     println!("Configuration:");
-    println!("  Epochs: {}", config.epochs);
-    println!("  Batch size: {}", config.batch_size);
-    println!("  Early stopping patience: {}", config.early_stopping_patience);
+    println!("  Epochs: {}", config.training.num_epochs);
+    println!("  Batch size: {}", config.training.batch_size);
+    println!("  Learning rate: {}", config.training.learning_rate);
+    println!("  Early stopping patience: {}", config.training.early_stopping_patience);
     println!();
 
     // Create trainer
@@ -25,7 +22,7 @@ fn main() -> Result<()> {
     println!("Starting training...\n");
 
     // Training loop (simplified - no actual model yet)
-    for epoch in 0..config.epochs {
+    for epoch in 0..config.training.num_epochs {
         // Placeholder training
         let train_loss = trainer.train_epoch_placeholder();
         let (val_loss, metrics) = trainer.validate_epoch_placeholder();
@@ -34,12 +31,12 @@ fn main() -> Result<()> {
         trainer.history.add_epoch(train_loss, val_loss, metrics.clone());
 
         // Print progress
-        if epoch % config.log_interval == 0 {
+        if epoch % config.training.save_every_n_epochs == 0 {
             trainer.print_epoch(epoch, train_loss, val_loss, &metrics);
         }
 
         // Save checkpoint
-        if epoch % 5 == 0 {
+        if epoch % config.training.save_every_n_epochs == 0 {
             trainer.save_checkpoint(epoch, train_loss, val_loss, "two_tower")?;
         }
 
