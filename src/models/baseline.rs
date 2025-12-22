@@ -1,84 +1,71 @@
-use tch::{nn, nn::Module, Device, Tensor};
+use ndarray::{Array1, Array2, Axis, concatenate};
+use ndarray_rand::RandomExt;
+use ndarray_rand::rand_distr::Uniform;
+use rand::SeedableRng;
+use rand::rngs::StdRng;
+use super::two_tower::{Linear, relu, dropout};
 
-/// Baseline model configuration
-pub struct BaselineConfig {
-    pub input_dim: i64,
-    pub hidden_dim1: i64,
-    pub hidden_dim2: i64,
-    pub output_dim: i64,
-    pub dropout_prob: f64,
+/// Baseline model (Cross-encoder)
+pub struct BaselineModel {
+    fc1: Linear,
+    fc2: Linear,
+    fc3: Linear,
+    dropout_prob: f32,
 }
 
-impl BaselineConfig {
-    /// Create baseline config parameter-matched to Two-Tower
+impl BaselineModel {
+    pub fn new(
+        input_dim: usize,
+        hidden_dim1: usize,
+        hidden_dim2: usize,
+        output_dim: usize,
+        dropout_prob: f32,
+        seed: u64,
+    ) -> Self {
+        Self {
+            fc1: Linear::new(input_dim, hidden_dim1, seed),
+            fc2: Linear::new(hidden_dim1, hidden_dim2, seed + 1),
+            fc3: Linear::new(hidden_dim2, output_dim, seed + 2),
+            dropout_prob,
+        }
+    }
+
+    /// Create parameter-matched baseline
     pub fn from_two_tower(
-        tf_input_dim: i64,
-        gene_input_dim: i64,
-        hidden_dim: i64,
-        embed_dim: i64,
-        dropout_prob: f64,
+        tf_input_dim: usize,
+        gene_input_dim: usize,
+        hidden_dim: usize,
+        embed_dim: usize,
+        dropout_prob: f32,
+        seed: u64,
     ) -> Self {
         let input_dim = tf_input_dim + gene_input_dim;
         let hidden_dim1 = hidden_dim * 2;
         let hidden_dim2 = embed_dim;
+        let output_dim = 1;
 
-        Self {
-            input_dim,
-            hidden_dim1,
-            hidden_dim2,
-            output_dim: 1,
-            dropout_prob,
-        }
-    }
-}
-
-/// Monolithic Baseline Model
-#[derive(Debug)]
-pub struct BaselineModel {
-    fc1: nn::Linear,
-    fc2: nn::Linear,
-    fc3: nn::Linear,
-    dropout: nn::Dropout,
-}
-
-impl BaselineModel {
-    pub fn new(vs: &nn::Path, config: &BaselineConfig) -> Self {
-        let fc1 = nn::linear(
-            vs / "fc1",
-            config.input_dim,
-            config.hidden_dim1,
-            Default::default(),
-        );
-        let fc2 = nn::linear(
-            vs / "fc2",
-            config.hidden_dim1,
-            config.hidden_dim2,
-            Default::default(),
-        );
-        let fc3 = nn::linear(
-            vs / "fc3",
-            config.hidden_dim2,
-            config.output_dim,
-            Default::default(),
-        );
-        let dropout = nn::Dropout::new(config.dropout_prob);
-
-        Self {
-            fc1,
-            fc2,
-            fc3,
-            dropout,
-        }
+        Self::new(input_dim, hidden_dim1, hidden_dim2, output_dim, dropout_prob, seed)
     }
 
-    pub fn forward(&self, x: &Tensor, train: bool) -> Tensor {
-        x.apply(&self.fc1)
-            .relu()
-            .apply_t(&self.dropout, train)
-            .apply(&self.fc2)
-            .relu()
-            .apply_t(&self.dropout, train)
-            .apply(&self.fc3)
+    /// Forward pass
+    pub fn forward(&self, x: &Array2<f32>, training: bool, rng: &mut StdRng) -> Array2<f32> {
+        let x = self.fc1.forward(x);
+        let x = relu(&x);
+        let x = dropout(&x, self.dropout_prob, training, rng);
+
+        let x = self.fc2.forward(&x);
+        let x = relu(&x);
+        let x = dropout(&x, self.dropout_prob, training, rng);
+
+        self.fc3.forward(&x)
+    }
+
+    /// Count parameters
+    pub fn count_params(&self) -> usize {
+        let fc1_params = self.fc1.weights.len() + self.fc1.bias.len();
+        let fc2_params = self.fc2.weights.len() + self.fc2.bias.len();
+        let fc3_params = self.fc3.weights.len() + self.fc3.bias.len();
+        fc1_params + fc2_params + fc3_params
     }
 }
 
@@ -88,41 +75,24 @@ mod tests {
 
     #[test]
     fn test_baseline_forward() {
-        let vs = nn::VarStore::new(Device::Cpu);
-        let config = BaselineConfig {
-            input_dim: 256,
-            hidden_dim1: 512,
-            hidden_dim2: 128,
-            output_dim: 1,
-            dropout_prob: 0.1,
-        };
+        let mut rng = StdRng::seed_from_u64(42);
+        let model = BaselineModel::new(256, 512, 128, 1, 0.1, 42);
 
-        let model = BaselineModel::new(&vs.root(), &config);
+        let input = Array2::zeros((32, 256));
+        let scores = model.forward(&input, false, &mut rng);
 
-        // Create dummy input
-        let batch_size = 32;
-        let input = Tensor::zeros(&[batch_size, 256], (tch::Kind::Float, Device::Cpu));
-
-        // Forward pass
-        let scores = model.forward(&input, false);
-
-        assert_eq!(scores.size(), vec![batch_size, 1]);
+        assert_eq!(scores.shape(), &[32, 1]);
     }
 
     #[test]
-    fn test_baseline_parameter_matching() {
-        let vs = nn::VarStore::new(Device::Cpu);
+    fn test_parameter_matching() {
+        let model = BaselineModel::from_two_tower(128, 128, 256, 128, 0.1, 42);
+        let params = model.count_params();
 
-        let config = BaselineConfig::from_two_tower(128, 128, 256, 128, 0.1);
-
-        let _model = BaselineModel::new(&vs.root(), &config);
-
-        // Count parameters
-        let total_params: i64 = vs.trainable_variables().iter().map(|t| t.size().iter().product::<i64>()).sum();
-
-        println!("Baseline params: {}", total_params);
+        println!("Baseline params: {}", params);
         // Should be ~132K parameters
-        assert!(total_params > 100_000 && total_params < 200_000);
+        assert!(params > 100_000 && params < 200_000);
     }
 }
+
 

@@ -1,145 +1,146 @@
-use tch::{nn, nn::Module, Device, Tensor};
+use ndarray::{Array1, Array2, Axis};
+use ndarray_rand::RandomExt;
+use ndarray_rand::rand_distr::Uniform;
+use rand::SeedableRng;
+use rand::rngs::StdRng;
 
-/// TF Encoder configuration
-pub struct EncoderConfig {
-    pub input_dim: i64,
-    pub hidden_dim: i64,
-    pub output_dim: i64,
-    pub dropout_prob: f64,
+/// Linear layer with weights and biases
+pub struct Linear {
+    pub weights: Array2<f32>,
+    pub bias: Array1<f32>,
 }
 
-/// TF Encoder for Two-Tower
-#[derive(Debug)]
+impl Linear {
+    /// He initialization for ReLU networks
+    pub fn new(input_dim: usize, output_dim: usize, seed: u64) -> Self {
+        let mut rng = StdRng::seed_from_u64(seed);
+        let std = (2.0 / input_dim as f32).sqrt();
+        
+        let weights = Array2::random_using(
+            (input_dim, output_dim),
+            Uniform::new(-std, std),
+            &mut rng,
+        );
+        let bias = Array1::zeros(output_dim);
+
+        Self { weights, bias }
+    }
+
+    /// Forward pass
+    pub fn forward(&self, x: &Array2<f32>) -> Array2<f32> {
+        x.dot(&self.weights) + &self.bias
+    }
+}
+
+/// ReLU activation
+pub fn relu(x: &Array2<f32>) -> Array2<f32> {
+    x.mapv(|v| v.max(0.0))
+}
+
+/// Dropout (training only)
+pub fn dropout(x: &Array2<f32>, prob: f32, training: bool, rng: &mut StdRng) -> Array2<f32> {
+    if !training || prob == 0.0 {
+        return x.clone();
+    }
+
+    let mask = Array2::random_using(x.dim(), Uniform::new(0.0, 1.0), rng);
+    let scale = 1.0 / (1.0 - prob);
+    x * mask.mapv(|v| if v > prob { scale } else { 0.0 })
+}
+
+/// TF Encoder
 pub struct TFEncoder {
-    fc1: nn::Linear,
-    fc2: nn::Linear,
-    dropout: nn::Dropout,
+    fc1: Linear,
+    fc2: Linear,
+    dropout_prob: f32,
 }
 
 impl TFEncoder {
-    pub fn new(vs: &nn::Path, config: &EncoderConfig) -> Self {
-        let fc1 = nn::linear(
-            vs / "fc1",
-            config.input_dim,
-            config.hidden_dim,
-            Default::default(),
-        );
-        let fc2 = nn::linear(
-            vs / "fc2",
-            config.hidden_dim,
-            config.output_dim,
-            Default::default(),
-        );
-        let dropout = nn::Dropout::new(config.dropout_prob);
-
-        Self { fc1, fc2, dropout }
+    pub fn new(input_dim: usize, hidden_dim: usize, output_dim: usize, dropout_prob: f32, seed: u64) -> Self {
+        Self {
+            fc1: Linear::new(input_dim, hidden_dim, seed),
+            fc2: Linear::new(hidden_dim, output_dim, seed + 1),
+            dropout_prob,
+        }
     }
 
-    pub fn forward(&self, x: &Tensor, train: bool) -> Tensor {
-        x.apply(&self.fc1)
-            .relu()
-            .apply_t(&self.dropout, train)
-            .apply(&self.fc2)
+    pub fn forward(&self, x: &Array2<f32>, training: bool, rng: &mut StdRng) -> Array2<f32> {
+        let x = self.fc1.forward(x);
+        let x = relu(&x);
+        let x = dropout(&x, self.dropout_prob, training, rng);
+        self.fc2.forward(&x)
     }
 }
 
-/// Gene Encoder for Two-Tower
-#[derive(Debug)]
+/// Gene Encoder
 pub struct GeneEncoder {
-    fc1: nn::Linear,
-    fc2: nn::Linear,
-    dropout: nn::Dropout,
+    fc1: Linear,
+    fc2: Linear,
+    dropout_prob: f32,
 }
 
 impl GeneEncoder {
-    pub fn new(vs: &nn::Path, config: &EncoderConfig) -> Self {
-        let fc1 = nn::linear(
-            vs / "fc1",
-            config.input_dim,
-            config.hidden_dim,
-            Default::default(),
-        );
-        let fc2 = nn::linear(
-            vs / "fc2",
-            config.hidden_dim,
-            config.output_dim,
-            Default::default(),
-        );
-        let dropout = nn::Dropout::new(config.dropout_prob);
-
-        Self { fc1, fc2, dropout }
+    pub fn new(input_dim: usize, hidden_dim: usize, output_dim: usize, dropout_prob: f32, seed: u64) -> Self {
+        Self {
+            fc1: Linear::new(input_dim, hidden_dim, seed),
+            fc2: Linear::new(hidden_dim, output_dim, seed + 1),
+            dropout_prob,
+        }
     }
 
-    pub fn forward(&self, x: &Tensor, train: bool) -> Tensor {
-        x.apply(&self.fc1)
-            .relu()
-            .apply_t(&self.dropout, train)
-            .apply(&self.fc2)
+    pub fn forward(&self, x: &Array2<f32>, training: bool, rng: &mut StdRng) -> Array2<f32> {
+        let x = self.fc1.forward(x);
+        let x = relu(&x);
+        let x = dropout(&x, self.dropout_prob, training, rng);
+        self.fc2.forward(&x)
     }
-}
-
-/// Two-Tower model configuration
-pub struct TwoTowerConfig {
-    pub tf_input_dim: i64,
-    pub gene_input_dim: i64,
-    pub hidden_dim: i64,
-    pub embed_dim: i64,
-    pub dropout_prob: f64,
-    pub temperature: f64,
 }
 
 /// Two-Tower Model
-#[derive(Debug)]
 pub struct TwoTowerModel {
     tf_encoder: TFEncoder,
     gene_encoder: GeneEncoder,
-    temperature: f64,
+    temperature: f32,
 }
 
 impl TwoTowerModel {
-    pub fn new(vs: &nn::Path, config: &TwoTowerConfig) -> Self {
-        let tf_config = EncoderConfig {
-            input_dim: config.tf_input_dim,
-            hidden_dim: config.hidden_dim,
-            output_dim: config.embed_dim,
-            dropout_prob: config.dropout_prob,
-        };
-
-        let gene_config = EncoderConfig {
-            input_dim: config.gene_input_dim,
-            hidden_dim: config.hidden_dim,
-            output_dim: config.embed_dim,
-            dropout_prob: config.dropout_prob,
-        };
-
+    pub fn new(
+        tf_input_dim: usize,
+        gene_input_dim: usize,
+        hidden_dim: usize,
+        embed_dim: usize,
+        dropout_prob: f32,
+        temperature: f32,
+        seed: u64,
+    ) -> Self {
         Self {
-            tf_encoder: TFEncoder::new(&(vs / "tf_encoder"), &tf_config),
-            gene_encoder: GeneEncoder::new(&(vs / "gene_encoder"), &gene_config),
-            temperature: config.temperature,
+            tf_encoder: TFEncoder::new(tf_input_dim, hidden_dim, embed_dim, dropout_prob, seed),
+            gene_encoder: GeneEncoder::new(gene_input_dim, hidden_dim, embed_dim, dropout_prob, seed + 100),
+            temperature,
         }
     }
 
     /// Encode TF
-    pub fn encode_tf(&self, x: &Tensor, train: bool) -> Tensor {
-        self.tf_encoder.forward(x, train)
+    pub fn encode_tf(&self, x: &Array2<f32>, training: bool, rng: &mut StdRng) -> Array2<f32> {
+        self.tf_encoder.forward(x, training, rng)
     }
 
     /// Encode Gene
-    pub fn encode_gene(&self, x: &Tensor, train: bool) -> Tensor {
-        self.gene_encoder.forward(x, train)
+    pub fn encode_gene(&self, x: &Array2<f32>, training: bool, rng: &mut StdRng) -> Array2<f32> {
+        self.gene_encoder.forward(x, training, rng)
     }
 
-    /// Compute similarity scores
-    pub fn score(&self, tf_embed: &Tensor, gene_embed: &Tensor) -> Tensor {
-        // Dot product: [batch, embed_dim] @ [embed_dim, batch]
-        let scores = tf_embed.matmul(&gene_embed.transpose(0, 1));
+    /// Compute similarity scores via dot product
+    pub fn score(&self, tf_embed: &Array2<f32>, gene_embed: &Array2<f32>) -> Array2<f32> {
+        // [batch, embed] @ [embed, batch] = [batch, batch]
+        let scores = tf_embed.dot(&gene_embed.t());
         scores / self.temperature
     }
 
     /// Forward pass
-    pub fn forward(&self, tf_input: &Tensor, gene_input: &Tensor, train: bool) -> Tensor {
-        let tf_embed = self.encode_tf(tf_input, train);
-        let gene_embed = self.encode_gene(gene_input, train);
+    pub fn forward(&self, tf_input: &Array2<f32>, gene_input: &Array2<f32>, training: bool, rng: &mut StdRng) -> Array2<f32> {
+        let tf_embed = self.encode_tf(tf_input, training, rng);
+        let gene_embed = self.encode_gene(gene_input, training, rng);
         self.score(&tf_embed, &gene_embed)
     }
 }
@@ -149,28 +150,32 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_linear_forward() {
+        let linear = Linear::new(128, 256, 42);
+        let x = Array2::zeros((32, 128));
+        let output = linear.forward(&x);
+        assert_eq!(output.shape(), &[32, 256]);
+    }
+
+    #[test]
+    fn test_relu() {
+        let x = Array2::from_shape_vec((2, 3), vec![-1.0, 0.0, 1.0, -2.0, 0.5, 3.0]).unwrap();
+        let output = relu(&x);
+        assert_eq!(output[[0, 0]], 0.0); // -1 -> 0
+        assert_eq!(output[[0, 2]], 1.0); // 1 -> 1
+    }
+
+    #[test]
     fn test_two_tower_forward() {
-        let vs = nn::VarStore::new(Device::Cpu);
-        let config = TwoTowerConfig {
-            tf_input_dim: 128,
-            gene_input_dim: 128,
-            hidden_dim: 256,
-            embed_dim: 128,
-            dropout_prob: 0.1,
-            temperature: 0.07,
-        };
+        let mut rng = StdRng::seed_from_u64(42);
+        let model = TwoTowerModel::new(128, 128, 256, 128, 0.1, 0.07, 42);
 
-        let model = TwoTowerModel::new(&vs.root(), &config);
+        let tf_input = Array2::zeros((32, 128));
+        let gene_input = Array2::zeros((32, 128));
 
-        // Create dummy input
-        let batch_size = 32;
-        let tf_input = Tensor::zeros(&[batch_size, 128], (tch::Kind::Float, Device::Cpu));
-        let gene_input = Tensor::zeros(&[batch_size, 128], (tch::Kind::Float, Device::Cpu));
-
-        // Forward pass
-        let scores = model.forward(&tf_input, &gene_input, false);
-
-        assert_eq!(scores.size(), vec![batch_size, batch_size]);
+        let scores = model.forward(&tf_input, &gene_input, false, &mut rng);
+        assert_eq!(scores.shape(), &[32, 32]);
     }
 }
+
 
