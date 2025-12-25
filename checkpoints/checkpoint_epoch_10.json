@@ -1,11 +1,11 @@
 {
-  "epoch": 5,
+  "epoch": 10,
   "train_loss": 0.5,
   "val_loss": 0.6,
   "best_val_loss": 0.6,
   "metadata": {
     "model_type": "two_tower",
-    "timestamp": "2025-12-25T22:34:17.652258+00:00",
+    "timestamp": "2025-12-25T22:34:17.652491+00:00",
     "hyperparameters": {}
   }
 }
