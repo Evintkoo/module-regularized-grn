@@ -19,6 +19,10 @@ path = "src/bin/train.rs"
 name = "train_example"
 path = "src/bin/train_example.rs"
 
+[[bin]]
+name = "train_priors"
+path = "src/bin/train_priors.rs"
+
 [dependencies]
 ndarray = { version = "0.15", features = ["rayon"] }
 ndarray-rand = "0.14"
