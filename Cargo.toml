@@ -23,6 +23,14 @@ path = "src/bin/train_example.rs"
 name = "train_priors"
 path = "src/bin/train_priors.rs"
 
+[[bin]]
+name = "train_embeddings"
+path = "src/bin/train_embeddings.rs"
+
+[[bin]]
+name = "train_embeddings_extended"
+path = "src/bin/train_embeddings_extended.rs"
+
 [dependencies]
 ndarray = { version = "0.15", features = ["rayon"] }
 ndarray-rand = "0.14"
