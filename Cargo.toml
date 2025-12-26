@@ -35,6 +35,10 @@ path = "src/bin/train_embeddings_extended.rs"
 name = "phase1_expression"
 path = "src/bin/phase1_expression.rs"
 
+[[bin]]
+name = "train_optimized"
+path = "src/bin/train_optimized.rs"
+
 [dependencies]
 ndarray = { version = "0.15", features = ["rayon"] }
 ndarray-rand = "0.14"
