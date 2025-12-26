@@ -8,7 +8,7 @@ use std::f32;
 pub struct OptimizedEmbeddingModel {
     // Deeper TF encoder (4 layers)
     tf_embed: Array2<f32>,
-    tf_embed_grad: Array2<f32>,
+    pub tf_embed_grad: Array2<f32>,
     tf_fc1: LinearLayer,
     tf_fc2: LinearLayer,
     tf_fc3: LinearLayer,
@@ -16,7 +16,7 @@ pub struct OptimizedEmbeddingModel {
     
     // Deeper Gene encoder (4 layers)
     gene_embed: Array2<f32>,
-    gene_embed_grad: Array2<f32>,
+    pub gene_embed_grad: Array2<f32>,
     gene_fc1: LinearLayer,
     gene_fc2: LinearLayer,
     gene_fc3: LinearLayer,

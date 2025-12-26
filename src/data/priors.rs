@@ -163,17 +163,27 @@ impl PriorDatasetBuilder {
     }
     
     /// Get TF name from index
-    fn get_tf_name(&self, idx: usize) -> Option<String> {
+    pub fn get_tf_name(&self, idx: usize) -> Option<String> {
         self.tf_vocab.iter()
             .find(|(_, &i)| i == idx)
             .map(|(name, _)| name.clone())
     }
     
     /// Get gene name from index
-    fn get_gene_name(&self, idx: usize) -> Option<String> {
+    pub fn get_gene_name(&self, idx: usize) -> Option<String> {
         self.gene_vocab.iter()
             .find(|(_, &i)| i == idx)
             .map(|(name, _)| name.clone())
+    }
+    
+    /// Get TF vocabulary reference
+    pub fn get_tf_vocab(&self) -> &HashMap<String, usize> {
+        &self.tf_vocab
+    }
+    
+    /// Get gene vocabulary reference
+    pub fn get_gene_vocab(&self) -> &HashMap<String, usize> {
+        &self.gene_vocab
     }
     
     pub fn num_tfs(&self) -> usize {
