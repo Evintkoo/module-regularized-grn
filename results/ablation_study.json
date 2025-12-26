@@ -1,0 +1,61 @@
+{
+  "baseline": {
+    "accuracy": 0.8017305135726929,
+    "name": "Full Model (Baseline)"
+  },
+  "best": {
+    "accuracy": 0.8017305135726929,
+    "name": "Full Model (Baseline)"
+  },
+  "results": [
+    {
+      "accuracy": 0.8017305135726929,
+      "auroc": 0.8416416049003601,
+      "name": "Full Model (Baseline)",
+      "precision": 0.8249828219413757,
+      "recall": 0.7639830708503723
+    },
+    {
+      "accuracy": 0.7972987294197083,
+      "auroc": 0.7916666865348816,
+      "name": "Small Embeddings",
+      "precision": 0.7880222201347351,
+      "recall": 0.8112288117408752
+    },
+    {
+      "accuracy": 0.7962435483932495,
+      "auroc": 0.8070319890975952,
+      "name": "Large Embeddings",
+      "precision": 0.7942603826522827,
+      "recall": 0.7974576354026794
+    },
+    {
+      "accuracy": 0.7982484102249146,
+      "auroc": 0.7957838773727417,
+      "name": "Small Hidden",
+      "precision": 0.791286289691925,
+      "recall": 0.8080508708953857
+    },
+    {
+      "accuracy": 0.6816503405570984,
+      "auroc": 0.7137599587440491,
+      "name": "Large Hidden",
+      "precision": 0.6341578960418701,
+      "recall": 0.8527542352676392
+    },
+    {
+      "accuracy": 0.8004642724990845,
+      "auroc": 0.8360818028450012,
+      "name": "High Temperature",
+      "precision": 0.8177937269210815,
+      "recall": 0.7711864113807678
+    },
+    {
+      "accuracy": 0.7874854803085327,
+      "auroc": 0.8371952176094055,
+      "name": "Low Temperature",
+      "precision": 0.8215304017066956,
+      "recall": 0.7324152588844299
+    }
+  ]
+}
