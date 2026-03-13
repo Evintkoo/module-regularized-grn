@@ -1,0 +1,51 @@
+%%{init: {'theme': 'default', 'themeVariables': {'fontSize': '13px', 'fontFamily': 'Helvetica, Arial, sans-serif'}, 'flowchart': {'curve': 'basis', 'padding': 12, 'nodeSpacing': 30, 'rankSpacing': 35, 'htmlLabels': false, 'diagramPadding': 20}}}%%
+
+flowchart LR
+    subgraph TF_PATH[" TF Pathway "]
+        direction TB
+        TFE["TF Embedding\ne in R^512"] --> TFC["Concat\nh0 in R^523"]
+        TFX["TF Expression\nx in R^11"] --> TFC
+        TFC --> TF1["FC 523->2048\nBN + ReLU\nDropout 0.2"]
+        TF1 --> TF2["FC 2048->1024\nBN + ReLU\nDropout 0.2"]
+        TF2 --> TF3["FC 1024->512\nLinear"]
+        TF3 --> ZTF["z_TF in R^512"]
+    end
+
+    subgraph GENE_PATH[" Gene Pathway "]
+        direction TB
+        GE["Gene Embedding\ne in R^512"] --> GC["Concat\nh0 in R^523"]
+        GX["Gene Expression\nx in R^11"] --> GC
+        GC --> G1["FC 523->2048\nBN + ReLU\nDropout 0.2"]
+        G1 --> G2["FC 2048->1024\nBN + ReLU\nDropout 0.2"]
+        G2 --> G3["FC 1024->512\nLinear"]
+        G3 --> ZG["z_Gene in R^512"]
+    end
+
+    subgraph SCORING[" Scoring "]
+        direction TB
+        SIM["Dot Product Similarity\nz_TF . z_Gene / tau\ntau = 0.05"]
+        SIG["Sigmoid -> P(edge)\nthreshold = 0.5"]
+        SIM --> SIG
+    end
+
+    subgraph TRAINING[" Training "]
+        direction TB
+        LOSS["BCE + L2 reg\nlambda = 0.01"]
+        ADAM["Adam lr=5e-3\nbatch=256 ep<=60"]
+        LOSS --> ADAM
+    end
+
+    ZTF --> SIM
+    ZG --> SIM
+    SIG --> LOSS
+
+    classDef tfStyle fill:#e3f2fd,stroke:#1565C0,stroke-width:2px,color:#000
+    classDef geneStyle fill:#fce4ec,stroke:#C62828,stroke-width:2px,color:#000
+    classDef scoreStyle fill:#f3e5f5,stroke:#6A1B9A,stroke-width:2px,color:#000
+    classDef trainStyle fill:#fff8e1,stroke:#F57F17,stroke-width:2px,color:#000
+    classDef embedStyle fill:#e8f5e9,stroke:#2E7D32,stroke-width:2px,color:#000
+
+    class TFE,TFX,TFC,TF1,TF2,TF3,ZTF tfStyle
+    class GE,GX,GC,G1,G2,G3,ZG geneStyle
+    class SIM,SIG scoreStyle
+    class LOSS,ADAM trainStyle

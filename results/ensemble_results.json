@@ -1,0 +1,73 @@
+{
+  "configuration": {
+    "dropout_rate": 0.20000000298023224,
+    "embed_dim": 512,
+    "epochs": 60,
+    "hidden_dim": 2048,
+    "learning_rate": 0.004999999888241291,
+    "num_models": 5,
+    "output_dim": 512,
+    "weight_decay": 0.009999999776482582
+  },
+  "date": "2025-12-28T03:23:49.215254+00:00",
+  "ensemble_results": {
+    "test_accuracy": 0.8306372165679932,
+    "test_auprc": 0.7273644804954529,
+    "test_auroc": 0.8136679530143738,
+    "test_f1": 0.8389943838119507,
+    "test_precision": 0.7967996001243591,
+    "test_recall": 0.8859079480171204
+  },
+  "experiment": "ensemble_with_expression_and_regularization",
+  "improvements": {
+    "from_baseline_62_23": 20.83371925354004,
+    "from_individual_mean": 1.1422216892242432,
+    "from_large_model_80_33": 2.7337193489074707
+  },
+  "individual_models": [
+    {
+      "model_id": 1,
+      "seed": 42,
+      "test_accuracy": 0.8085525631904602,
+      "test_f1": 0.8183637857437134,
+      "test_precision": 0.7758097052574158,
+      "test_recall": 0.8658571243286133
+    },
+    {
+      "model_id": 2,
+      "seed": 43,
+      "test_accuracy": 0.8279645442962646,
+      "test_f1": 0.8357287049293518,
+      "test_precision": 0.796875,
+      "test_recall": 0.8785653710365295
+    },
+    {
+      "model_id": 3,
+      "seed": 44,
+      "test_accuracy": 0.8174145221710205,
+      "test_f1": 0.8300156593322754,
+      "test_precision": 0.773870587348938,
+      "test_recall": 0.8949449062347412
+    },
+    {
+      "model_id": 4,
+      "seed": 45,
+      "test_accuracy": 0.8188211917877197,
+      "test_f1": 0.8244753479957581,
+      "test_precision": 0.7966815829277039,
+      "test_recall": 0.8542784452438354
+    },
+    {
+      "model_id": 5,
+      "seed": 46,
+      "test_accuracy": 0.8233225345611572,
+      "test_f1": 0.8308644890785217,
+      "test_precision": 0.7940797805786133,
+      "test_recall": 0.8712227940559387
+    }
+  ],
+  "individual_stats": {
+    "mean_accuracy": 0.8192149996757507,
+    "std_accuracy": 0.006488616578280926
+  }
+}

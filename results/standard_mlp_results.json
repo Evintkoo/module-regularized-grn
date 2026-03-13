@@ -1,0 +1,27 @@
+{
+  "architecture": "Standard MLP (Two-pathway)",
+  "confusion_matrix": {
+    "fn": 359,
+    "fp": 2326,
+    "tn": 1242,
+    "tp": 3182
+  },
+  "metrics": {
+    "accuracy": 0.6223097443580627,
+    "f1_score": 0.7032820582389832,
+    "precision": 0.5777051448822021,
+    "recall": 0.8986161947250366
+  },
+  "model": {
+    "embed_dim": 64,
+    "expr_dim": 11,
+    "hidden_dim": 128,
+    "output_dim": 64,
+    "temperature": 0.10000000149011612
+  },
+  "note": "NOT a transformer - uses feedforward layers only",
+  "training": {
+    "best_val_loss": 0.7226120233535767,
+    "epochs_completed": 50
+  }
+}

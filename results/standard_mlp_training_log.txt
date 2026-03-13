@@ -1,0 +1,99 @@
+=== Standard MLP Training (NOT Transformer) ===
+Architecture: Two-pathway feedforward network
+  - Pathway 1: TF encoder (embedding + expression → hidden → output)
+  - Pathway 2: Gene encoder (embedding + expression → hidden → output)
+  - Similarity: Cosine similarity with temperature scaling
+  - NO attention mechanism, NO transformer layers
+
+Loading prior knowledge...
+  TFs: 1164 | Genes: 7664
+Loading expression data...
+  Cell types: 11 | Expression genes: 2000
+Mapping genes to expression features...
+  TFs with expression: 0/1164 (0.0%)
+  Genes with expression: 0/7664 (0.0%)
+
+Creating dataset...
+  Total: 47388 | Train: 33171 | Val: 7108 | Test: 7109
+
+Model Architecture (Standard MLP):
+  Input: Embedding (64d) + Expression (11d)
+  Hidden layer: 128 dimensions with ReLU
+  Output encoding: 64 dimensions
+  Similarity: Cosine with temperature=0.1
+  Total params: ~600960
+
+Training Configuration:
+  Optimizer: Adam (standard, not AdamW)
+  Learning rate: 0.001
+  Batch size: 256
+  Epochs: 50
+  Weight decay (L2): 0.01
+
+Starting training...
+
+Epoch  1 | Train Loss: 0.7272 | Val Loss: 0.7249 | Val Acc: 50.90%
+Epoch  2 | Train Loss: 0.7269 | Val Loss: 0.7247 | Val Acc: 52.27%
+Epoch  3 | Train Loss: 0.7268 | Val Loss: 0.7246 | Val Acc: 53.35%
+Epoch  4 | Train Loss: 0.7266 | Val Loss: 0.7245 | Val Acc: 54.15%
+Epoch  5 | Train Loss: 0.7265 | Val Loss: 0.7244 | Val Acc: 54.66%
+Epoch  6 | Train Loss: 0.7264 | Val Loss: 0.7244 | Val Acc: 55.14%
+Epoch  7 | Train Loss: 0.7263 | Val Loss: 0.7243 | Val Acc: 55.77%
+Epoch  8 | Train Loss: 0.7262 | Val Loss: 0.7242 | Val Acc: 56.30%
+Epoch  9 | Train Loss: 0.7261 | Val Loss: 0.7242 | Val Acc: 56.71%
+Epoch 10 | Train Loss: 0.7260 | Val Loss: 0.7241 | Val Acc: 57.15%
+Epoch 11 | Train Loss: 0.7259 | Val Loss: 0.7241 | Val Acc: 57.47%
+Epoch 12 | Train Loss: 0.7258 | Val Loss: 0.7240 | Val Acc: 57.86%
+Epoch 13 | Train Loss: 0.7258 | Val Loss: 0.7240 | Val Acc: 58.16%
+Epoch 14 | Train Loss: 0.7257 | Val Loss: 0.7239 | Val Acc: 58.47%
+Epoch 15 | Train Loss: 0.7256 | Val Loss: 0.7239 | Val Acc: 58.64%
+Epoch 16 | Train Loss: 0.7255 | Val Loss: 0.7238 | Val Acc: 58.79%
+Epoch 17 | Train Loss: 0.7255 | Val Loss: 0.7238 | Val Acc: 58.96%
+Epoch 18 | Train Loss: 0.7254 | Val Loss: 0.7237 | Val Acc: 59.09%
+Epoch 19 | Train Loss: 0.7253 | Val Loss: 0.7237 | Val Acc: 59.16%
+Epoch 20 | Train Loss: 0.7252 | Val Loss: 0.7237 | Val Acc: 59.24%
+Epoch 21 | Train Loss: 0.7252 | Val Loss: 0.7236 | Val Acc: 59.48%
+Epoch 22 | Train Loss: 0.7251 | Val Loss: 0.7236 | Val Acc: 59.69%
+Epoch 23 | Train Loss: 0.7250 | Val Loss: 0.7235 | Val Acc: 59.92%
+Epoch 24 | Train Loss: 0.7250 | Val Loss: 0.7235 | Val Acc: 59.93%
+Epoch 25 | Train Loss: 0.7249 | Val Loss: 0.7234 | Val Acc: 60.07%
+Epoch 26 | Train Loss: 0.7248 | Val Loss: 0.7234 | Val Acc: 60.20%
+Epoch 27 | Train Loss: 0.7248 | Val Loss: 0.7234 | Val Acc: 60.28%
+Epoch 28 | Train Loss: 0.7247 | Val Loss: 0.7233 | Val Acc: 60.48%
+Epoch 29 | Train Loss: 0.7247 | Val Loss: 0.7233 | Val Acc: 60.66%
+Epoch 30 | Train Loss: 0.7246 | Val Loss: 0.7232 | Val Acc: 60.80%
+Epoch 31 | Train Loss: 0.7245 | Val Loss: 0.7232 | Val Acc: 60.95%
+Epoch 32 | Train Loss: 0.7245 | Val Loss: 0.7232 | Val Acc: 61.14%
+Epoch 33 | Train Loss: 0.7244 | Val Loss: 0.7231 | Val Acc: 61.27%
+Epoch 34 | Train Loss: 0.7244 | Val Loss: 0.7231 | Val Acc: 61.37%
+Epoch 35 | Train Loss: 0.7243 | Val Loss: 0.7231 | Val Acc: 61.47%
+Epoch 36 | Train Loss: 0.7243 | Val Loss: 0.7230 | Val Acc: 61.48%
+Epoch 37 | Train Loss: 0.7242 | Val Loss: 0.7230 | Val Acc: 61.55%
+Epoch 38 | Train Loss: 0.7242 | Val Loss: 0.7230 | Val Acc: 61.61%
+Epoch 39 | Train Loss: 0.7241 | Val Loss: 0.7229 | Val Acc: 61.75%
+Epoch 40 | Train Loss: 0.7241 | Val Loss: 0.7229 | Val Acc: 61.85%
+Epoch 41 | Train Loss: 0.7241 | Val Loss: 0.7229 | Val Acc: 61.93%
+Epoch 42 | Train Loss: 0.7240 | Val Loss: 0.7228 | Val Acc: 62.01%
+Epoch 43 | Train Loss: 0.7240 | Val Loss: 0.7228 | Val Acc: 62.13%
+Epoch 44 | Train Loss: 0.7239 | Val Loss: 0.7228 | Val Acc: 62.20%
+Epoch 45 | Train Loss: 0.7239 | Val Loss: 0.7227 | Val Acc: 62.35%
+Epoch 46 | Train Loss: 0.7238 | Val Loss: 0.7227 | Val Acc: 62.51%
+Epoch 47 | Train Loss: 0.7238 | Val Loss: 0.7227 | Val Acc: 62.61%
+Epoch 48 | Train Loss: 0.7238 | Val Loss: 0.7227 | Val Acc: 62.79%
+Epoch 49 | Train Loss: 0.7237 | Val Loss: 0.7226 | Val Acc: 62.89%
+Epoch 50 | Train Loss: 0.7237 | Val Loss: 0.7226 | Val Acc: 62.99%
+
+=== Test Set Evaluation ===
+Test Results:
+  Accuracy:  62.23%
+  Precision: 57.77%
+  Recall:    89.86%
+  F1-Score:  0.7033
+
+Confusion Matrix:
+  TP: 3182 | FP: 2326
+  FN: 359 | TN: 1242
+
+✓ Results saved to: results/standard_mlp_results.json
+
+=== Training Complete ===

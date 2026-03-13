@@ -71,6 +71,16 @@ impl LinearLayer {
         self.weights = &self.weights - &self.grad_weights * (learning_rate / batch_size);
         self.bias = &self.bias - &self.grad_bias * (learning_rate / batch_size);
     }
+    
+    /// Update weights with weight decay (L2 regularization)
+    pub fn update_with_weight_decay(&mut self, learning_rate: f32, weight_decay: f32) {
+        let batch_size = self.input_cache.as_ref().map(|x| x.nrows() as f32).unwrap_or(1.0);
+        // Apply gradient update
+        self.weights = &self.weights - &self.grad_weights * (learning_rate / batch_size);
+        self.bias = &self.bias - &self.grad_bias * (learning_rate / batch_size);
+        // Apply weight decay (L2 regularization)
+        self.weights = &self.weights * (1.0 - learning_rate * weight_decay);
+    }
 
     /// Zero gradients
     pub fn zero_grad(&mut self) {

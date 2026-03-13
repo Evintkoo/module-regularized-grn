@@ -1,0 +1,17 @@
+Loading data...
+Traceback (most recent call last):
+  File "/Users/evintleovonzko/Documents/research/module-regularized-grn/scripts/train_advanced.py", line 498, in <module>
+    main()
+  File "/Users/evintleovonzko/Documents/research/module-regularized-grn/scripts/train_advanced.py", line 292, in main
+    train_df = pd.read_csv('data/processed/train_data.csv')
+  File "/Users/evintleovonzko/Library/Python/3.9/lib/python/site-packages/pandas/io/parsers/readers.py", line 1026, in read_csv
+    return _read(filepath_or_buffer, kwds)
+  File "/Users/evintleovonzko/Library/Python/3.9/lib/python/site-packages/pandas/io/parsers/readers.py", line 620, in _read
+    parser = TextFileReader(filepath_or_buffer, **kwds)
+  File "/Users/evintleovonzko/Library/Python/3.9/lib/python/site-packages/pandas/io/parsers/readers.py", line 1620, in __init__
+    self._engine = self._make_engine(f, self.engine)
+  File "/Users/evintleovonzko/Library/Python/3.9/lib/python/site-packages/pandas/io/parsers/readers.py", line 1880, in _make_engine
+    self.handles = get_handle(
+  File "/Users/evintleovonzko/Library/Python/3.9/lib/python/site-packages/pandas/io/common.py", line 873, in get_handle
+    handle = open(
+FileNotFoundError: [Errno 2] No such file or directory: 'data/processed/train_data.csv'

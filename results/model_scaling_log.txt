@@ -1,0 +1,55 @@
+═══════════════════════════════════════════════════════════
+        SCALING UP MODEL SIZE - TESTING LARGER MODELS
+═══════════════════════════════════════════════════════════
+
+Loading data...
+  TFs: 1164 | Genes: 7664
+  Cell types: 11
+
+Creating dataset...
+  Train: 33171 | Val: 7108 | Test: 7109
+
+═══════════════════════════════════════════════════════════
+ Model Scale | Embed | Hidden | Params  | Time   | Test Acc
+═══════════════════════════════════════════════════════════
+
+Current Best (1.2M) - Starting training...
+  Embedding: 128d | Hidden: 512d | Output: 128d
+  Parameters: ~1.4M
+  Training for up to 40 epochs...
+    Epoch   0: Val Acc = 56.12%
+    Epoch  10: Val Acc = 72.92%
+    Epoch  20: Val Acc = 75.42%
+    Epoch  30: Val Acc = 76.73%
+  ✓ Test Accuracy: 77.58%
+ Current Best (1.2M) |   128 |    512 |   1.4M |   0.4m |  77.58%
+
+Medium (5M) - Starting training...
+  Embedding: 256d | Hidden: 1024d | Output: 256d
+  Parameters: ~3.3M
+  Training for up to 50 epochs...
+    Epoch   0: Val Acc = 62.69%
+    Epoch  10: Val Acc = 75.97%
+    Epoch  20: Val Acc = 77.59%
+    Epoch  30: Val Acc = 78.40%
+    Epoch  40: Val Acc = 78.70%
+  ✓ Test Accuracy: 78.49%
+ Medium (5M)     |   256 |   1024 |   3.3M |   1.8m |  78.49%
+
+Large (20M) - Starting training...
+  Embedding: 512d | Hidden: 2048d | Output: 512d
+  Parameters: ~8.8M
+  Training for up to 50 epochs...
+    Epoch   0: Val Acc = 65.18%
+    Epoch  10: Val Acc = 76.72%
+    Epoch  20: Val Acc = 78.98%
+    Epoch  30: Val Acc = 79.91%
+    Epoch  40: Val Acc = 80.25%
+  ✓ Test Accuracy: 80.33%
+ Large (20M)     |   512 |   2048 |   8.8M |   6.8m |  80.33%
+
+Very Large (80M) - Starting training...
+  Embedding: 1024d | Hidden: 4096d | Output: 1024d
+  Parameters: ~25.9M
+  Training for up to 60 epochs...
+    Epoch   0: Val Acc = 65.19%

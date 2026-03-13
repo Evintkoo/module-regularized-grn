@@ -1,0 +1,32 @@
+{
+  "configuration": {
+    "batch_size": 256,
+    "dropout_rate": 0.25,
+    "embed_dim": 512,
+    "epochs": 80,
+    "hidden_dim": 2048,
+    "initial_lr": 0.004999999888241291,
+    "label_smoothing": 0.05000000074505806,
+    "min_lr": 0.0005000000237487257,
+    "num_models": 10,
+    "output_dim": 512,
+    "warmup_epochs": 5,
+    "weight_decay": 0.009999999776482582
+  },
+  "date": "2025-12-29T20:39:09.874207+00:00",
+  "ensemble_results": {
+    "test_accuracy": 0.8127725124359131,
+    "test_auprc": 0.7505314946174622,
+    "test_auroc": 0.8138631582260132,
+    "test_f1": 0.8211261630058289,
+    "test_precision": 0.7833333611488342,
+    "test_recall": 0.8627506494522095
+  },
+  "experiment": "target_95_percent",
+  "individual_stats": {
+    "max_individual": 0.8110845685005188,
+    "mean_accuracy": 0.7884513139724731,
+    "std_accuracy": 0.014035200700163841
+  },
+  "training_time_minutes": 79.66666666666667
+}

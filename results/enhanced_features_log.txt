@@ -1,0 +1,110 @@
+═══════════════════════════════════════════════════════════
+  ENSEMBLE WITH ENHANCED EXPRESSION FEATURES
+═══════════════════════════════════════════════════════════
+
+Configuration:
+  Model: Large (512d emb, 2048d hidden)
+  Ensemble: 5 models
+  Features: Enhanced (17d)
+
+1. Loading prior knowledge...
+   TFs: 1164 | Genes: 7664
+
+2. Loading enhanced expression features...
+   Feature dimension: 17
+   TF features mapped: 124/1164 (10.7%)
+   Gene features mapped: 1131/7664 (14.8%)
+
+3. Creating dataset...
+   Train: 33171 | Val: 7108 | Test: 7109
+
+═══════════════════════════════════════════════════════════
+Training 5 models...
+
+Model 1/5 (seed=42):
+--------------------------------------------------
+  Epoch   0: Val Acc = 61.68%
+  Epoch  10: Val Acc = 77.66%
+  Epoch  20: Val Acc = 80.18%
+  Epoch  30: Val Acc = 82.03%
+  Epoch  40: Val Acc = 82.68%
+  Epoch  50: Val Acc = 83.02%
+  ✓ Test Accuracy: 82.54%
+  Training time: 8.2 minutes
+
+Model 2/5 (seed=43):
+--------------------------------------------------
+  Epoch   0: Val Acc = 63.38%
+  Epoch  10: Val Acc = 78.38%
+  Epoch  20: Val Acc = 81.16%
+  Epoch  30: Val Acc = 82.55%
+  Epoch  40: Val Acc = 82.84%
+  Epoch  50: Val Acc = 82.86%
+  ✓ Test Accuracy: 83.22%
+  Training time: 8.3 minutes
+
+Model 3/5 (seed=44):
+--------------------------------------------------
+  Epoch   0: Val Acc = 66.90%
+  Epoch  10: Val Acc = 80.42%
+  Epoch  20: Val Acc = 82.63%
+  Epoch  30: Val Acc = 82.96%
+  Epoch  40: Val Acc = 83.20%
+  Epoch  50: Val Acc = 83.53%
+  ✓ Test Accuracy: 83.94%
+  Training time: 8.7 minutes
+
+Model 4/5 (seed=45):
+--------------------------------------------------
+  Epoch   0: Val Acc = 66.22%
+  Epoch  10: Val Acc = 77.21%
+  Epoch  20: Val Acc = 80.29%
+  Epoch  30: Val Acc = 81.43%
+  Epoch  40: Val Acc = 81.98%
+  Epoch  50: Val Acc = 82.50%
+  ✓ Test Accuracy: 83.12%
+  Training time: 8.2 minutes
+
+Model 5/5 (seed=46):
+--------------------------------------------------
+  Epoch   0: Val Acc = 63.58%
+  Epoch  10: Val Acc = 77.80%
+  Epoch  20: Val Acc = 81.98%
+  Epoch  30: Val Acc = 82.34%
+  Epoch  40: Val Acc = 82.79%
+  Epoch  50: Val Acc = 83.24%
+  ✓ Test Accuracy: 83.40%
+  Training time: 8.2 minutes
+
+═══════════════════════════════════════════════════════════
+INDIVIDUAL MODEL RESULTS:
+═══════════════════════════════════════════════════════════
+
+Model 1: Acc=82.54% | Prec=81.75% | Rec=83.62% | F1=0.8267
+Model 2: Acc=83.22% | Prec=82.16% | Rec=84.69% | F1=0.8341
+Model 3: Acc=83.94% | Prec=84.26% | Rec=83.31% | F1=0.8378
+Model 4: Acc=83.12% | Prec=80.68% | Rec=86.92% | F1=0.8369
+Model 5: Acc=83.40% | Prec=83.13% | Rec=83.65% | F1=0.8339
+
+Mean: 83.24% ± 0.45%
+
+═══════════════════════════════════════════════════════════
+ENSEMBLE RESULTS:
+═══════════════════════════════════════════════════════════
+
+🏆 ENSEMBLE PERFORMANCE:
+  Accuracy:  84.30%
+  Precision: 83.60%
+  Recall:    85.20%
+  F1-Score:  0.8439
+  AUROC:     0.8414
+  AUPRC:     0.7735
+
+═══════════════════════════════════════════════════════════
+COMPARISON:
+═══════════════════════════════════════════════════════════
+Previous (no feature mapping):  83.06%
+Current (enhanced features):    84.30%
+Improvement:                    +1.24%
+═══════════════════════════════════════════════════════════
+
