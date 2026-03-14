@@ -16,11 +16,15 @@ Remove all Python from the project, replace active Python scripts with Rust equi
 
 Code-first: clean and port code → then update docs to reflect ground truth.
 
-1. Audit & delete inactive Python scripts
-2. Port active Python scripts to Rust
-3. Delete superseded Rust bin targets
-4. Review core Rust for performance and hygiene
-5. Update README.md, CLAUDE.md, plan.md
+Commit checkpoints after each destructive step to ensure recoverability.
+
+1. **Commit checkpoint** — ensure working tree is clean before starting
+2. Audit & delete inactive Python scripts → **commit**
+3. Delete superseded Rust bin targets + update `Cargo.toml` stanzas → verify `cargo build --release` → **commit**
+4. Add new Rust crates to `Cargo.toml` (`plotters`, `statrs`, check `hdf5`)
+5. Port active Python scripts to Rust new bins → **commit**
+6. Review core Rust for performance and hygiene → **commit**
+7. Update README.md, CLAUDE.md, plan.md → **commit**
 
 ---
 
@@ -46,9 +50,17 @@ Code-first: clean and port code → then update docs to reflect ground truth.
 | `generate_tables.py` | `src/bin/generate_tables.rs` | CSV/LaTeX table output |
 | `statistical_analysis.py` | `src/bin/statistical_analysis.rs` | Bootstrap CIs, significance tests |
 | `process_h5ad.py` | Extend `src/data/expression.rs` | H5AD reading already partially implemented |
-| `make_pdf.py` | `src/bin/make_pdf.rs` or shell script | Simple file assembly; assess complexity |
+| `make_pdf.py` | Shell script calling `pandoc` | 86-line reportlab wrapper; replace with `pandoc` CLI call, not a Rust binary |
 
-**Crate additions needed**: `plotters` (figures), potentially `hdf5` (H5AD, already used).
+**Crate additions needed** — add explicitly to `Cargo.toml` before porting:
+- `plotters = "0.3"` — figure generation (PNG and SVG output)
+- `statrs = "0.16"` — chi-squared CDF for McNemar's test and other statistical distributions
+- `hdf5` — check if already present (used by `src/data/expression.rs`); add if not
+
+**Output format decisions:**
+- **Figures**: `plotters` produces PNG and SVG, not PDF. Port will output PNG (300 dpi) and SVG. PDF figures are not natively supported; if PDF is required for journal submission, use a post-process step (`rsvg-convert` or `inkscape` CLI) outside Rust. Document this in README.
+- **Tables**: `generate_tables.py` outputs LaTeX (`.tex`). Rust port will use manual format-string serialization for LaTeX table output; no external crate needed. Output `.tex` files with `\caption{}` and `\label{}` matching current Python output.
+- **Statistical analysis**: `statistical_analysis.py` uses `scipy.stats.chi2.cdf` for McNemar's test. Rust port will use `statrs::distribution::ChiSquared` for the same computation.
 
 ---
 
@@ -71,6 +83,12 @@ Code-first: clean and port code → then update docs to reflect ground truth.
 
 `train.rs`, `train_hybrid.rs`, `train_hybrid_v2.rs`, `train_embeddings.rs`, `train_embeddings_extended.rs`, `train_advanced.rs`, `train_optimized.rs`, `train_scaled.rs`, `train_scaled_models.rs`, `train_medium.rs`, `train_ultra.rs`, `train_95_target.rs`, `train_priors.rs`, `train_classifier_head.rs`, `train_cross_attention.rs`, `train_with_enhanced_features.rs`, `phase1_expression.rs`, `train_example.rs`
 
+### Cargo.toml synchronization (critical)
+
+- For each deleted bin: remove its `[[bin]]` stanza from `Cargo.toml`
+- For each kept bin not yet registered in `Cargo.toml`: add a `[[bin]]` stanza
+- Verify `cargo build --release` succeeds after every batch of deletions, not just at the end
+
 ---
 
 ## Section 3: Core Rust Code Review
@@ -83,7 +101,7 @@ Code-first: clean and port code → then update docs to reflect ground truth.
 
 ### Hygiene targets
 
-- **`src/models/mod.rs`**: Remove dead `mod` and `pub use` exports for deleted experimental models
+- **`src/models/mod.rs`**: Remove dead `mod` and `pub use` exports for deleted experimental models. Also delete the corresponding model source files (e.g. `attention.rs`, `attention_model.rs`, `baseline.rs`, `classifier_head.rs`, `cross_attention_model.rs`, `embeddings.rs`, `expression_model.rs`, `optimized_embeddings.rs`, `scalable_hybrid.rs`, `two_tower.rs`, `learnable_embeddings.rs`) if they are only used by deleted bins. Verify no kept bin imports them before deletion.
 - **`src/loss/` and `src/training/`**: Remove modules that only existed to support deleted bins
 - **Unused imports**: Clean up `use` statements across codebase after bin deletion
 
@@ -114,8 +132,10 @@ All three docs updated after code cleanup is complete, so they reflect the actua
 ## Success Criteria
 
 - `scripts/` directory is empty or removed
-- `cargo build --release` succeeds with no warnings
-- All kept bins compile and run
-- Figure generation works via `cargo run --release --bin generate_figures`
+- `cargo build --release` succeeds with no errors for all kept and new bins
+- All kept bins **compile** (full run requires dataset; smoke-test compile is sufficient)
+- Figure generation: `cargo run --release --bin generate_figures` produces PNG/SVG output
+- Table generation: `cargo run --release --bin generate_tables` produces `.tex` files
+- Statistical analysis: `cargo run --release --bin statistical_analysis` runs against `results/` JSON
 - README, CLAUDE.md, plan.md contain no Python references
-- No dead `mod` exports or unused imports in core modules
+- No dead `mod` exports or unused imports in core modules (`cargo build` emits zero warnings)
