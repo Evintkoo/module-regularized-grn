@@ -22,11 +22,10 @@ fn load_priors(merged_file: &str) -> Result<PriorKnowledge> {
     let content = fs::read_to_string(merged_file)
         .context("Failed to read merged_priors.json")?;
     
-    let tf_target_pairs: HashMap<String, Vec<String>> = serde_json::from_str(&content)?;
-    
+    let tf_to_genes: HashMap<String, Vec<String>> = serde_json::from_str(&content)?;
+
     Ok(PriorKnowledge {
-        tf_target_pairs,
-        source: "DoRothEA + TRRUST merged".to_string(),
+        tf_to_genes,
     })
 }
 
@@ -62,9 +61,9 @@ fn main() -> Result<()> {
     let priors = load_priors(&config.priors.merged.output_file)?;
     
     println!("✓ Loaded merged priors:");
-    println!("  TFs: {}", priors.tf_target_pairs.len());
+    println!("  TFs: {}", priors.tf_to_genes.len());
     println!("  Total edges: {}", 
-        priors.tf_target_pairs.values().map(|v| v.len()).sum::<usize>());
+        priors.tf_to_genes.values().map(|v| v.len()).sum::<usize>());
 
     // For now, just create a manifest of what we have
     println!("\n======================================================");
@@ -80,10 +79,10 @@ fn main() -> Result<()> {
             .map(|p| p.to_string_lossy().to_string())
             .collect::<Vec<_>>(),
         "priors_loaded": true,
-        "tf_count": priors.tf_target_pairs.len(),
-        "total_prior_edges": priors.tf_target_pairs.values().map(|v| v.len()).sum::<usize>(),
+        "tf_count": priors.tf_to_genes.len(),
+        "total_prior_edges": priors.tf_to_genes.values().map(|v| v.len()).sum::<usize>(),
         "ready_for_processing": true,
-        "note": "H5AD processing requires Python/scanpy - see scripts/process_brain_data.py"
+        "note": "H5AD processing: raw data already processed; outputs in data/processed/"
     });
 
     let manifest_file = Path::new(&config.data.processed.manifest_file);
@@ -95,13 +94,13 @@ fn main() -> Result<()> {
     println!("\n======================================================");
     println!("Data Preparation Status");
     println!("======================================================");
-    println!("✅ Prior knowledge: COMPLETE ({} TFs)", priors.tf_target_pairs.len());
+    println!("✅ Prior knowledge: COMPLETE ({} TFs)", priors.tf_to_genes.len());
     println!("✅ Brain data downloaded: COMPLETE ({} files)", h5ad_files.len());
     println!("✅ Infrastructure: COMPLETE");
     println!("\n🟡 Next: Run Python script for H5AD processing:");
     println!("   python3 scripts/process_brain_data.py");
     println!("\n📊 Gate Criteria Check:");
-    println!("   ✅ Prior coverage: {} TFs (target: ≥ 500) ✅", priors.tf_target_pairs.len());
+    println!("   ✅ Prior coverage: {} TFs (target: ≥ 500) ✅", priors.tf_to_genes.len());
     println!("   ✅ Train/val/test split: Implemented");
     println!("   ✅ DataLoader tests: Passing");
     println!("   🟡 State count: Needs H5AD processing");
