@@ -47,6 +47,14 @@ path = "src/bin/generate_tables.rs"
 name = "generate_figures"
 path = "src/bin/generate_figures.rs"
 
+[[bin]]
+name = "train_cross_encoder"
+path = "src/bin/train_cross_encoder.rs"
+
+[[bin]]
+name = "compare_models"
+path = "src/bin/compare_models.rs"
+
 [dependencies]
 ndarray = { version = "0.15", features = ["rayon"] }
 ndarray-rand = "0.14"

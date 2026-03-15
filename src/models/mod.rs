@@ -1,5 +1,6 @@
 pub mod nn;
 pub mod hybrid_embeddings;
+pub mod cross_encoder;
 
 pub use nn::{
     LinearLayer, Dropout,
@@ -8,3 +9,4 @@ pub use nn::{
     bce_loss, bce_loss_backward,
 };
 pub use hybrid_embeddings::HybridEmbeddingModel;
+pub use cross_encoder::CrossEncoderModel;
