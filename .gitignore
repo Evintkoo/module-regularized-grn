@@ -1,4 +1,5 @@
 /target
+/.worktrees/
 /data/brain_v1_0/
 /data/processed/
 *.h5ad
