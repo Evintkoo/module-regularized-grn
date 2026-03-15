@@ -160,18 +160,24 @@ mod tests {
         priors.tf_target_pairs.insert("TF1".to_string(), vec!["Gene1".to_string()]);
         
         let state = StateId::new("diss1".to_string(), "cluster1".to_string());
-        let expression = vec![1.0, 2.0];
+        let expression = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0];
         
         let mut tf_indices = HashMap::new();
         tf_indices.insert("TF1".to_string(), 0);
         
+        // Need ≥6 genes so there are ≥5 possible negative pairs (TF1,Gene2..Gene6)
         let mut gene_indices = HashMap::new();
         gene_indices.insert("Gene1".to_string(), 1);
-        
+        gene_indices.insert("Gene2".to_string(), 2);
+        gene_indices.insert("Gene3".to_string(), 3);
+        gene_indices.insert("Gene4".to_string(), 4);
+        gene_indices.insert("Gene5".to_string(), 5);
+        gene_indices.insert("Gene6".to_string(), 6);
+
         let candidates = builder
             .build_candidates(&state, &priors, &expression, &tf_indices, &gene_indices, &mut rng)
             .unwrap();
-        
+
         assert_eq!(candidates.positive_edges.len(), 1);
         assert_eq!(candidates.negative_edges.len(), 5);
     }
