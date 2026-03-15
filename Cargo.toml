@@ -39,6 +39,10 @@ path = "src/bin/evaluate.rs"
 name = "statistical_analysis"
 path = "src/bin/statistical_analysis.rs"
 
+[[bin]]
+name = "generate_tables"
+path = "src/bin/generate_tables.rs"
+
 [dependencies]
 ndarray = { version = "0.15", features = ["rayon"] }
 ndarray-rand = "0.14"
