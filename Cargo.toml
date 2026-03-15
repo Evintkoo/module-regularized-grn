@@ -35,6 +35,10 @@ path = "src/bin/seed_robustness.rs"
 name = "evaluate"
 path = "src/bin/evaluate.rs"
 
+[[bin]]
+name = "statistical_analysis"
+path = "src/bin/statistical_analysis.rs"
+
 [dependencies]
 ndarray = { version = "0.15", features = ["rayon"] }
 ndarray-rand = "0.14"
