@@ -34,6 +34,7 @@ fn main() -> Result<()> {
     
     println!("  TFs: {} | Genes: {}", num_tfs, num_genes);
     
+    // Loaded once before training loop
     // Load expression data
     println!("Loading expression data...");
     let expr_data = ExpressionData::from_processed_dir(

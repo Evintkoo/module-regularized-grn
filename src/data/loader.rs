@@ -130,7 +130,6 @@ impl<'a, R: Rng> Iterator for DataLoaderIter<'a, R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::types::StateId;
     use rand::SeedableRng;
     use rand::rngs::StdRng;
     

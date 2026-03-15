@@ -192,13 +192,13 @@ impl HybridEmbeddingModel {
         // Backward through gene encoder
         let grad_gene_h1 = self.gene_fc2.backward(&grad_gene_out);
         let gene_h1 = self.gene_h1.as_ref().unwrap();
-        let grad_gene_h1_pre = relu_backward(&grad_gene_h1, gene_h1);
+        let grad_gene_h1_pre = relu_backward(gene_h1, &grad_gene_h1);
         let grad_gene_concat = self.gene_fc1.backward(&grad_gene_h1_pre);
-        
+
         // Backward through TF encoder
         let grad_tf_h1 = self.tf_fc2.backward(&grad_tf_out);
         let tf_h1 = self.tf_h1.as_ref().unwrap();
-        let grad_tf_h1_pre = relu_backward(&grad_tf_h1, tf_h1);
+        let grad_tf_h1_pre = relu_backward(tf_h1, &grad_tf_h1);
         let grad_tf_concat = self.tf_fc1.backward(&grad_tf_h1_pre);
         
         // Split gradients: embeddings + expression
