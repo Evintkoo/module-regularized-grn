@@ -1,6 +1,5 @@
 /// Test model robustness across multiple random seeds
 use module_regularized_grn::{
-    Config,
     models::{hybrid_embeddings::HybridEmbeddingModel, nn::{bce_loss, bce_loss_backward}},
     data::{PriorKnowledge, PriorDatasetBuilder, expression::ExpressionData},
     evaluation::EvaluationMetrics,
@@ -66,7 +65,7 @@ fn train_and_evaluate(seed: u64) -> Result<EvaluationMetrics> {
         num_tfs, num_genes, embed_dim, expr_dim, hidden_dim, output_dim, 0.07, 0.01, seed
     );
     
-    for epoch in 0..num_epochs {
+    for _epoch in 0..num_epochs {
         model.zero_grad();
         
         for batch_start in (0..train_samples.len()).step_by(batch_size) {

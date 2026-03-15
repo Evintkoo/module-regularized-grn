@@ -1,6 +1,5 @@
 /// Ablation study to understand component contributions
 use module_regularized_grn::{
-    Config,
     models::{hybrid_embeddings::HybridEmbeddingModel, nn::{bce_loss, bce_loss_backward}},
     data::{PriorKnowledge, PriorDatasetBuilder, expression::ExpressionData},
     evaluation::EvaluationMetrics,
@@ -16,6 +15,7 @@ struct AblationConfig {
     name: String,
     embed_dim: usize,
     hidden_dim: usize,
+    #[allow(dead_code)]
     use_two_layers: bool,
     temperature: f32,
 }

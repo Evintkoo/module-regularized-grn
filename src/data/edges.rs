@@ -21,7 +21,7 @@ impl CandidateEdgeBuilder {
         &self,
         state: &StateId,
         priors: &PriorKnowledge,
-        expression: &[f32],
+        _expression: &[f32],
         tf_indices: &HashMap<String, usize>,
         gene_indices: &HashMap<String, usize>,
         rng: &mut impl Rng,

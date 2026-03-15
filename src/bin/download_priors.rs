@@ -9,6 +9,7 @@ use std::path::Path;
 use std::time::Duration;
 
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)]
 struct DorotheaInteraction {
     #[serde(alias = "source_genesymbol", alias = "source")]
     tf: String,

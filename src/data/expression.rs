@@ -81,7 +81,7 @@ impl ExpressionData {
     }
     
     /// Get expression for a specific cell type
-    pub fn get_cell_type_expression(&self, cell_type_idx: usize) -> Option<ndarray::ArrayView1<f32>> {
+    pub fn get_cell_type_expression(&self, cell_type_idx: usize) -> Option<ndarray::ArrayView1<'_, f32>> {
         if cell_type_idx < self.n_cell_types {
             Some(self.expression.row(cell_type_idx))
         } else {
@@ -90,7 +90,7 @@ impl ExpressionData {
     }
     
     /// Get expression for a specific gene across all cell types
-    pub fn get_gene_expression(&self, gene_idx: usize) -> Option<ndarray::ArrayView1<f32>> {
+    pub fn get_gene_expression(&self, gene_idx: usize) -> Option<ndarray::ArrayView1<'_, f32>> {
         if gene_idx < self.n_genes {
             Some(self.expression.column(gene_idx))
         } else {

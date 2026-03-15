@@ -1,6 +1,6 @@
 /// Hybrid model: Learnable embeddings + Expression features
 /// Target: 70%+ accuracy by combining structure and biology
-use crate::models::nn::{LinearLayer, relu, relu_backward, sigmoid};
+use crate::models::nn::{LinearLayer, relu, relu_backward};
 use ndarray::{Array1, Array2, Axis};
 use std::f32;
 
@@ -22,6 +22,7 @@ pub struct HybridEmbeddingModel {
     
     // Expression dimensions
     embed_dim: usize,
+    #[allow(dead_code)]
     expr_dim: usize,
     
     // Caches for backward pass
@@ -274,10 +275,10 @@ impl HybridEmbeddingModel {
     pub fn train_batch_with_regularization(
         &mut self,
         batch: &[(String, String, f64)],
-        learning_rate: f64,
+        _learning_rate: f64,
         temperature: f64,
-        dropout: f64,
-        l2_weight: f64,
+        _dropout: f64,
+        _l2_weight: f64,
     ) -> f64 {
         // Simplified training method for compatibility
         // In real implementation, would need gene mapping

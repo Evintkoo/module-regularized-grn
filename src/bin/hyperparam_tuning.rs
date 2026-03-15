@@ -2,7 +2,7 @@
 /// Goal: Find optimal configuration for maximum accuracy
 use module_regularized_grn::{
     Config,
-    models::{hybrid_embeddings::HybridEmbeddingModel, nn::{bce_loss, bce_loss_backward}},
+    models::{hybrid_embeddings::HybridEmbeddingModel, nn::bce_loss_backward},
     data::{PriorKnowledge, PriorDatasetBuilder, expression::ExpressionData},
 };
 use ndarray::{Array1, Array2};
@@ -22,12 +22,14 @@ struct HyperparamConfig {
     learning_rate: f32,
     batch_size: usize,
     weight_decay: f32,
+    #[allow(dead_code)]
     dropout_rate: f32,
 }
 
 #[derive(Debug)]
 struct TrainingResult {
     config: HyperparamConfig,
+    #[allow(dead_code)]
     train_accuracy: f32,
     val_accuracy: f32,
     test_accuracy: f32,
@@ -201,7 +203,7 @@ fn generate_configs() -> Vec<HyperparamConfig> {
     // Hidden dimensions to try
     let hidden_dims = vec![64, 128, 256, 512];
     // Output dimensions to try
-    let output_dims = vec![32, 64, 128];
+    let _output_dims = vec![32, 64, 128];
     // Learning rates to try
     let learning_rates = vec![0.0001, 0.0005, 0.001, 0.005];
     // Temperatures to try
@@ -445,8 +447,8 @@ fn evaluate_detailed(
 fn build_expression_maps(
     builder: &PriorDatasetBuilder,
     expr_data: &ExpressionData,
-    num_tfs: usize,
-    num_genes: usize,
+    _num_tfs: usize,
+    _num_genes: usize,
 ) -> (HashMap<usize, Array1<f32>>, HashMap<usize, Array1<f32>>, usize) {
     
     let mut gene_to_expr_idx: HashMap<String, usize> = HashMap::new();

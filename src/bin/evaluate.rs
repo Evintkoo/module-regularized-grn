@@ -117,7 +117,7 @@ fn main() -> Result<()> {
             
             let scores = model.forward(&tf_indices, &gene_indices, &tf_expr_batch, &gene_expr_batch);
             let scores_2d = scores.clone().insert_axis(ndarray::Axis(1));
-            let loss = bce_loss(&scores_2d, &labels);
+            let _loss = bce_loss(&scores_2d, &labels);
             let grad_2d = bce_loss_backward(&scores_2d, &labels);
             let grad = grad_2d.column(0).to_owned() / batch.len() as f32;
             
