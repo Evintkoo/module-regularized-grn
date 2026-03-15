@@ -72,12 +72,15 @@ src/
 │   ├── train_ensemble.rs      # Ensemble training
 │   ├── ablation_study.rs      # Ablation experiments
 │   ├── seed_robustness.rs     # Stability testing
+│   ├── generate_figures.rs    # Figure generation (SVG/PNG)
+│   ├── generate_tables.rs     # LaTeX table generation
+│   ├── statistical_analysis.rs # Bootstrap CIs, significance tests
 │   └── ...                    # Other experimental scripts
 ├── config.rs                  # Configuration management
 └── lib.rs                     # Library root
-scripts/                       # Python analysis & figure generation
+scripts/                       # Shell scripts (make_pdf.sh)
 results/                       # JSON result files
-figures/                       # Publication figures (PDF/PNG)
+figures/                       # Publication figures (SVG/PNG)
 ```
 
 ## Key Findings
