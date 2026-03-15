@@ -277,9 +277,10 @@
 
 - [ ] Add `plotters` and `statrs` to `Cargo.toml` dependencies section:
   ```toml
-  plotters = { version = "0.3", default-features = false, features = ["svg_backend", "bitmap_backend", "bitmap_encoder", "line_series", "area_series"] }
-  statrs = "0.16"
+  plotters = { version = "0.3", default-features = false, features = ["svg_backend", "line_series", "area_series"] }
+  statrs = "0.17"
   ```
+  Note: SVG-only output (no `bitmap_backend`/`bitmap_encoder` needed — we produce SVG not PNG). Use `statrs = "0.17"` (0.16 is not published; 0.17 is latest stable with identical API).
 
 - [ ] Verify the crates resolve
   ```bash
@@ -365,7 +366,7 @@ The bin reads `results/evaluation_metrics.json` and `results/predictions.json`, 
   #[derive(Serialize)]
   struct BootstrapCI {
       accuracy: CIBand,
-      auroc: CIBand,
+      // auroc CI not computed here; AUROC CI is read from evaluation_metrics.json by generate_figures
   }
 
   #[derive(Serialize)]
@@ -413,12 +414,6 @@ The bin reads `results/evaluation_metrics.json` and `results/predictions.json`, 
       (statistic, p_value)
   }
 
-  fn accuracy(y_true: &[f64], y_pred: &[f64]) -> f64 {
-      y_true.iter().zip(y_pred.iter())
-          .filter(|(t, p)| (p > &&0.5) == (t > &&0.5))
-          .count() as f64 / y_true.len() as f64
-  }
-
   fn main() -> Result<()> {
       println!("=== Statistical Analysis ===\n");
       let preds_path = "results/predictions.json";
@@ -455,10 +450,12 @@ The bin reads `results/evaluation_metrics.json` and `results/predictions.json`, 
       }
 
       // Write results
+      // Note: AUROC bootstrap CI is not computed here (requires AUROC metric function).
+      // The auroc field is intentionally omitted from BootstrapCI — downstream generate_figures
+      // reads AUROC CI from evaluation_metrics.json directly.
       let results = StatResults {
           bootstrap_ci: BootstrapCI {
               accuracy: CIBand { mean: acc_mean, lower: acc_lower, upper: acc_upper },
-              auroc: CIBand { mean: 0.0, lower: 0.0, upper: 0.0 }, // placeholder if AUROC not computed
           },
           mcnemar: McnemarResult { statistic: stat, p_value: p },
           error_by_confidence,
@@ -481,6 +478,13 @@ The bin reads `results/evaluation_metrics.json` and `results/predictions.json`, 
   cargo test --bin statistical_analysis 2>&1
   ```
   Expected: `test tests::test_bootstrap_ci_known_data ... ok` and `test tests::test_mcnemar_test_significant ... ok`
+
+- [ ] Add `[[bin]]` stanza for `statistical_analysis` to `Cargo.toml` (before building):
+  ```toml
+  [[bin]]
+  name = "statistical_analysis"
+  path = "src/bin/statistical_analysis.rs"
+  ```
 
 - [ ] Build the bin
   ```bash
@@ -569,11 +573,12 @@ The bin reads `results/evaluation_metrics.json` and `results/predictions.json`, 
       println!("✓ paper/tables/table1_main_results.tex");
 
       // Table 2: Seed robustness
+      // Schema: {"accuracies": [f64, ...], "seeds": [...], "mean_accuracy": f64, ...}
       let seeds = load_json("results/seed_robustness.json")?;
-      if let Some(arr) = seeds.as_array() {
+      if let Some(arr) = seeds["accuracies"].as_array() {
           let mut seed_rows = Vec::new();
-          for (i, s) in arr.iter().enumerate() {
-              let acc = s["test_accuracy"].as_f64().unwrap_or(0.0);
+          for (i, acc_val) in arr.iter().enumerate() {
+              let acc = acc_val.as_f64().unwrap_or(0.0);
               seed_rows.push((format!("Seed {}", i + 1), format!("{acc:.4}")));
           }
           let tex = format_latex_table(&seed_rows, "Seed Robustness", "tab:seeds");
@@ -582,10 +587,11 @@ The bin reads `results/evaluation_metrics.json` and `results/predictions.json`, 
       }
 
       // Table 3: Ablation study
+      // Schema: {"results": [{"name": str, "accuracy": f64, ...}, ...], "baseline": ..., "best": ...}
       let ablation = load_json("results/ablation_study.json")?;
-      if let Some(variants) = ablation["variants"].as_array() {
+      if let Some(results) = ablation["results"].as_array() {
           let mut abl_rows = Vec::new();
-          for v in variants {
+          for v in results {
               let name = v["name"].as_str().unwrap_or("").to_string();
               let acc  = v["accuracy"].as_f64().unwrap_or(0.0);
               abl_rows.push((name, format!("{acc:.4}")));
@@ -624,15 +630,11 @@ The bin reads `results/evaluation_metrics.json` and `results/predictions.json`, 
   ```
   Expected: `test tests::test_latex_table_format ... ok`
 
-- [ ] Add `[[bin]]` stanza to `Cargo.toml` for new bins (add after existing stanzas):
+- [ ] Add `[[bin]]` stanza to `Cargo.toml` for `generate_tables` (statistical_analysis stanza was added in Task 7):
   ```toml
   [[bin]]
   name = "generate_tables"
   path = "src/bin/generate_tables.rs"
-
-  [[bin]]
-  name = "statistical_analysis"
-  path = "src/bin/statistical_analysis.rs"
   ```
 
 - [ ] Build
@@ -653,7 +655,7 @@ The bin reads `results/evaluation_metrics.json` and `results/predictions.json`, 
 
 **Files:** Create `src/bin/generate_figures.rs`
 
-This ports `generate_all_figures.py` and `plot_results.py`. Outputs PNG and SVG to `figures/`. 8 figures total: ROC, PR curve, confusion matrix, performance comparison, seed robustness, ablation, bootstrap distributions, architecture diagram.
+This ports `generate_all_figures.py` and `plot_results.py`. Outputs SVG to `figures/`. Implements 4 core figures: ROC curve, PR curve, ablation study bars, seed robustness line. (The Python original has 8 figures; confusion matrix, performance comparison, bootstrap distributions, and architecture diagram are out of scope for this port — the remaining 4 require more complex plotters APIs and are lower priority.)
 
 > **Note:** `plotters` produces PNG and SVG. PDF output from Python is not reproduced. For journal submission requiring PDF, use `rsvg-convert figures/figN.svg -o figures/figN.pdf` as a post-process step.
 
@@ -675,15 +677,16 @@ This ports `generate_all_figures.py` and `plot_results.py`. Outputs PNG and SVG 
       }
 
       #[test]
-      fn test_roc_curve_random_classifier() {
-          // Symmetric random: AUC ≈ 0.5
-          let y_true = vec![0.0f64, 1.0, 0.0, 1.0];
-          let y_pred = vec![0.5f64, 0.5, 0.5, 0.5];
+      fn test_roc_curve_below_chance() {
+          // Inverse classifier (always wrong): AUC < 0.5
+          let y_true = vec![0.0f64, 0.0, 1.0, 1.0];
+          let y_pred = vec![0.9f64, 0.8, 0.2, 0.1]; // high scores for negatives
           let (_, _, auc) = compute_roc_curve(&y_true, &y_pred);
-          assert!(auc >= 0.4 && auc <= 0.6, "AUC should be ~0.5 for random, got {auc}");
+          assert!(auc < 0.5, "AUC should be < 0.5 for inverse classifier, got {auc}");
       }
   }
   ```
+  Note: avoid all-equal-score tests for AUC — tie-breaking is sort-order-dependent.
 
 - [ ] Run to confirm compile failure:
   ```bash
@@ -875,10 +878,11 @@ This ports `generate_all_figures.py` and `plot_results.py`. Outputs PNG and SVG 
       println!("✓ figures/figure2_pr_curve.svg (AP={ap:.4})");
 
       // Figure 3: Ablation
+      // Schema: {"results": [{"name": str, "accuracy": f64}, ...]}
       if let Ok(abl_json) = std::fs::read_to_string("results/ablation_study.json") {
           let ablation: Value = serde_json::from_str(&abl_json)?;
-          if let Some(variants) = ablation["variants"].as_array() {
-              let data: Vec<(String, f64)> = variants.iter()
+          if let Some(results) = ablation["results"].as_array() {
+              let data: Vec<(String, f64)> = results.iter()
                   .map(|v| (v["name"].as_str().unwrap_or("").to_string(), v["accuracy"].as_f64().unwrap_or(0.0)))
                   .collect();
               draw_ablation_bars(&data, "figures/figure3_ablation.svg")?;
@@ -887,12 +891,11 @@ This ports `generate_all_figures.py` and `plot_results.py`. Outputs PNG and SVG 
       }
 
       // Figure 4: Seed robustness
+      // Schema: {"accuracies": [f64, ...], "mean_accuracy": f64, ...}
       if let Ok(seed_json) = std::fs::read_to_string("results/seed_robustness.json") {
           let seeds: Value = serde_json::from_str(&seed_json)?;
-          if let Some(arr) = seeds.as_array() {
-              let accs: Vec<f64> = arr.iter()
-                  .filter_map(|s| s["test_accuracy"].as_f64())
-                  .collect();
+          if let Some(arr) = seeds["accuracies"].as_array() {
+              let accs: Vec<f64> = arr.iter().filter_map(|v| v.as_f64()).collect();
               draw_seed_robustness(&accs, "figures/figure4_seed_robustness.svg")?;
               println!("✓ figures/figure4_seed_robustness.svg");
           }
@@ -918,11 +921,11 @@ This ports `generate_all_figures.py` and `plot_results.py`. Outputs PNG and SVG 
       }
 
       #[test]
-      fn test_roc_curve_random_classifier() {
-          let y_true = vec![0.0f64, 1.0, 0.0, 1.0];
-          let y_pred = vec![0.5f64, 0.5, 0.5, 0.5];
+      fn test_roc_curve_below_chance() {
+          let y_true = vec![0.0f64, 0.0, 1.0, 1.0];
+          let y_pred = vec![0.9f64, 0.8, 0.2, 0.1];
           let (_, _, auc) = compute_roc_curve(&y_true, &y_pred);
-          assert!(auc >= 0.4 && auc <= 0.6, "AUC should be ~0.5, got {auc}");
+          assert!(auc < 0.5, "AUC should be < 0.5 for inverse classifier, got {auc}");
       }
 
       #[test]
@@ -963,11 +966,14 @@ This ports `generate_all_figures.py` and `plot_results.py`. Outputs PNG and SVG 
   ```bash
   #!/bin/bash
   # Convert paper/manuscript.md to PDF using pandoc.
-  # Requires: pandoc (brew install pandoc)
+  # Requires:
+  #   - pandoc:   brew install pandoc
+  #   - TeX Live: brew install --cask mactex  (or brew install basictex)
+  # Uses pdflatex (default, widely available). For Unicode/custom font support use --pdf-engine=xelatex.
   set -e
   pandoc paper/manuscript.md \
       --output paper/manuscript.pdf \
-      --pdf-engine=xelatex \
+      --pdf-engine=pdflatex \
       --variable geometry:margin=1in \
       --variable fontsize=11pt
   echo "PDF created: paper/manuscript.pdf"
