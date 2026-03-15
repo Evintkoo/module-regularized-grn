@@ -49,13 +49,13 @@ Commit checkpoints after each destructive step to ensure recoverability.
 | `generate_all_figures.py` / `plot_results.py` | `src/bin/generate_figures.rs` | SVG/PNG via `plotters` crate |
 | `generate_tables.py` | `src/bin/generate_tables.rs` | CSV/LaTeX table output |
 | `statistical_analysis.py` | `src/bin/statistical_analysis.rs` | Bootstrap CIs, significance tests |
-| `process_h5ad.py` | Extend `src/data/expression.rs` | H5AD reading already partially implemented |
+| ~~`process_h5ad.py`~~ | **Delete** | One-time data prep; outputs (`.npy` files in `data/processed/expression/`) already exist. `expression.rs` reads these outputs, not raw H5AD. Reclassified as inactive. |
 | `make_pdf.py` | Shell script calling `pandoc` | 86-line reportlab wrapper; replace with `pandoc` CLI call, not a Rust binary |
 
 **Crate additions needed** — add explicitly to `Cargo.toml` before porting:
 - `plotters = "0.3"` — figure generation (PNG and SVG output)
 - `statrs = "0.16"` — chi-squared CDF for McNemar's test and other statistical distributions
-- `hdf5` — check if already present (used by `src/data/expression.rs`); add if not
+- `hdf5` — NOT needed; `process_h5ad.py` is reclassified as delete (see below); `expression.rs` already reads processed outputs
 
 **Output format decisions:**
 - **Figures**: `plotters` produces PNG and SVG, not PDF. Port will output PNG (300 dpi) and SVG. PDF figures are not natively supported; if PDF is required for journal submission, use a post-process step (`rsvg-convert` or `inkscape` CLI) outside Rust. Document this in README.
@@ -85,9 +85,16 @@ Commit checkpoints after each destructive step to ensure recoverability.
 
 ### Cargo.toml synchronization (critical)
 
-- For each deleted bin: remove its `[[bin]]` stanza from `Cargo.toml`
-- For each kept bin not yet registered in `Cargo.toml`: add a `[[bin]]` stanza
-- Verify `cargo build --release` succeeds after every batch of deletions, not just at the end
+**Source file deletion is required for all bins in the delete list, regardless of whether a `[[bin]]` stanza is present.** Some bins on the delete list are already unregistered in Cargo.toml but still exist as source files (`train_hybrid.rs`, `train_hybrid_v2.rs`, `train_advanced.rs`, `train_scaled.rs`, `train_medium.rs`, `train_ultra.rs`, `train_95_target.rs`, `train_classifier_head.rs`). Delete these files even though no stanza removal is needed.
+
+For bins with stanzas: remove the `[[bin]]` stanza from `Cargo.toml` AND delete the source file.
+
+**Kept bins currently missing `[[bin]]` stanzas** — add these to `Cargo.toml`:
+- `ablation_study` → `src/bin/ablation_study.rs`
+- `seed_robustness` → `src/bin/seed_robustness.rs`
+- `evaluate` → `src/bin/evaluate.rs`
+
+Verify `cargo build --release` succeeds after every batch of deletions, not just at the end.
 
 ---
 
