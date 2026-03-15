@@ -7,16 +7,16 @@ use std::f32;
 /// Hybrid embedding + expression model
 pub struct HybridEmbeddingModel {
     // TF encoder
-    tf_embed: Array2<f32>,
+    pub tf_embed: Array2<f32>,
     pub tf_embed_grad: Array2<f32>,
-    tf_fc1: LinearLayer,  // (embed + expr) → hidden
-    tf_fc2: LinearLayer,  // hidden → output
-    
-    // Gene encoder  
-    gene_embed: Array2<f32>,
+    pub tf_fc1: LinearLayer,  // (embed + expr) → hidden
+    pub tf_fc2: LinearLayer,  // hidden → output
+
+    // Gene encoder
+    pub gene_embed: Array2<f32>,
     pub gene_embed_grad: Array2<f32>,
-    gene_fc1: LinearLayer,
-    gene_fc2: LinearLayer,
+    pub gene_fc1: LinearLayer,
+    pub gene_fc2: LinearLayer,
     
     temperature: f32,
     
