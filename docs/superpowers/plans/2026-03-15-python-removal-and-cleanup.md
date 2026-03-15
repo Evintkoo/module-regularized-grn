@@ -242,7 +242,12 @@
   ```
   (If any of these files don't exist, skip that rm; do not fail)
 
-- [ ] Remove `pub mod loss` and `pub use loss::*` from `src/lib.rs`, and `pub mod training` and `pub use training::*` from `src/lib.rs`. The final `src/lib.rs` should be:
+- [ ] Verify `src/evaluation/` exists before rewriting `lib.rs`:
+  ```bash
+  ls src/evaluation/ 2>/dev/null && echo "evaluation module exists" || echo "evaluation module does NOT exist"
+  ```
+
+- [ ] Remove `pub mod loss` and `pub use loss::*` from `src/lib.rs`, and `pub mod training` and `pub use training::*`. If `src/evaluation/` exists, the final `src/lib.rs` should be:
   ```rust
   pub mod config;
   pub mod data;
@@ -254,6 +259,7 @@
   pub use models::*;
   pub use evaluation::*;
   ```
+  If `src/evaluation/` does NOT exist, omit `pub mod evaluation` and `pub use evaluation::*`.
 
 - [ ] Delete the now-empty `mod.rs` files and their parent directories if truly empty, OR leave them as empty `mod.rs` files — either is fine; but do NOT leave them with dead `pub mod` entries pointing to deleted files.
 
@@ -1087,16 +1093,20 @@ This ports `generate_all_figures.py` and `plot_results.py`. Outputs SVG to `figu
   let grad_tf_h1_pre   = relu_backward(&grad_tf_h1,   tf_h1);    // WRONG: swapped
   ```
 
-  Correct pattern (compare against `optimized_embeddings.rs` or `baseline.rs`):
+  The authoritative signature (from `src/models/nn.rs`):
   ```rust
-  let grad_gene_h1_pre = relu_backward(gene_h1, &grad_gene_h1);  // pre-activation, then gradient
+  pub fn relu_backward(x: &Array2<f32>, grad_output: &Array2<f32>) -> Array2<f32>
+  // x           = pre-activation input (used to compute mask: where x > 0)
+  // grad_output = upstream gradient (the thing being multiplied by the mask)
+  ```
+
+  Correct calls:
+  ```rust
+  let grad_gene_h1_pre = relu_backward(gene_h1, &grad_gene_h1);  // pre-activation first, gradient second
   let grad_tf_h1_pre   = relu_backward(tf_h1,   &grad_tf_h1);
   ```
 
-  Fix by swapping the arguments. Verify the fix by comparing to other correct call sites in the codebase:
-  ```bash
-  grep -n "relu_backward" src/models/optimized_embeddings.rs src/models/baseline.rs
-  ```
+  Fix by swapping the arguments. Do NOT use `optimized_embeddings.rs` or `baseline.rs` as reference — those files are deleted in Task 4.
 
 - [ ] Check `nn.rs` for `.clone()` calls inside `forward()`:
   ```bash
