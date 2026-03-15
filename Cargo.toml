@@ -12,34 +12,6 @@ name = "process_data"
 path = "src/bin/process_data.rs"
 
 [[bin]]
-name = "train"
-path = "src/bin/train.rs"
-
-[[bin]]
-name = "train_example"
-path = "src/bin/train_example.rs"
-
-[[bin]]
-name = "train_priors"
-path = "src/bin/train_priors.rs"
-
-[[bin]]
-name = "train_embeddings"
-path = "src/bin/train_embeddings.rs"
-
-[[bin]]
-name = "train_embeddings_extended"
-path = "src/bin/train_embeddings_extended.rs"
-
-[[bin]]
-name = "phase1_expression"
-path = "src/bin/phase1_expression.rs"
-
-[[bin]]
-name = "train_optimized"
-path = "src/bin/train_optimized.rs"
-
-[[bin]]
 name = "train_standard_mlp"
 path = "src/bin/train_standard_mlp.rs"
 
@@ -48,20 +20,20 @@ name = "hyperparam_tuning"
 path = "src/bin/hyperparam_tuning.rs"
 
 [[bin]]
-name = "train_scaled_models"
-path = "src/bin/train_scaled_models.rs"
-
-[[bin]]
 name = "train_ensemble"
 path = "src/bin/train_ensemble.rs"
 
 [[bin]]
-name = "train_with_enhanced_features"
-path = "src/bin/train_with_enhanced_features.rs"
+name = "ablation_study"
+path = "src/bin/ablation_study.rs"
 
 [[bin]]
-name = "train_cross_attention"
-path = "src/bin/train_cross_attention.rs"
+name = "seed_robustness"
+path = "src/bin/seed_robustness.rs"
+
+[[bin]]
+name = "evaluate"
+path = "src/bin/evaluate.rs"
 
 [dependencies]
 ndarray = { version = "0.15", features = ["rayon"] }
