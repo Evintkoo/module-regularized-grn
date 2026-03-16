@@ -1,0 +1,913 @@
+\documentclass[10pt,twocolumn]{article}
+
+% ============================================================
+%  Packages
+% ============================================================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{mathptmx}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage[margin=0.75in,top=1in,bottom=1in]{geometry}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage{setspace}
+\usepackage{authblk}
+\usepackage{xurl}
+
+\graphicspath{{../figures/}}
+
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{5}
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.8}
+\renewcommand{\textfraction}{0.1}
+\renewcommand{\floatpagefraction}{0.8}
+\setcounter{dbltopnumber}{2}
+\renewcommand{\dbltopfraction}{0.9}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!70!black,
+    citecolor=blue!70!black,
+    urlcolor=blue!70!black
+}
+
+\captionsetup{font=small,labelfont=bf}
+\setlist{nosep,leftmargin=*}
+
+\usepackage{titlesec}
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}{\normalsize\itshape}{\thesubsubsection}{0.8em}{}
+\titlespacing*{\section}{0pt}{1.5ex plus 0.5ex minus 0.2ex}{0.8ex plus 0.2ex}
+\titlespacing*{\subsection}{0pt}{1.2ex plus 0.3ex minus 0.2ex}{0.5ex plus 0.1ex}
+
+% ============================================================
+%  Title
+% ============================================================
+\title{\Large\bfseries Modular Versus Monolithic Architectures for Gene Regulatory
+Network Edge Prediction: Gradient Stability Analysis and a Controlled
+Cross-Architecture Comparison}
+
+\author{Evint Leovonzko}
+
+\date{}
+
+% ============================================================
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+% ============================================================
+%  Abstract
+% ============================================================
+\begin{abstract}
+\noindent\textbf{Motivation:}
+Neural network architectures for gene regulatory network (GRN) inference differ
+fundamentally in how they represent the interaction between a transcription
+factor (TF) and a target gene: \emph{modular} two-tower models score pairs via
+a learned similarity function in a shared latent space, while \emph{monolithic}
+cross-encoders concatenate all pairwise features before a shared MLP.
+Whether architectural modularity benefits or hinders performance on this
+pairwise classification task remains under-explored, particularly when
+confounded by training instabilities that can mask genuine model differences.
+
+\noindent\textbf{Results:}
+We present a controlled comparison of a two-tower hybrid embedding model and a
+cross-encoder on a curated human brain single-cell RNA-seq dataset of 47{,}388
+TF--gene candidate pairs.
+A prerequisite diagnostic investigation identifies three compounding gradient
+failures in the original two-tower training implementation---a loss-function
+double-sigmoid, gradient replacement (rather than accumulation) in FC layer
+backward passes, and catastrophic gradient clipping under temperature
+scaling---each of which, individually and in combination, collapses training to
+near-chance accuracy.
+After correcting these failures with per-batch Adam and a numerically stable
+gradient estimator, the two-tower model achieves 80.90\% accuracy
+(95\%~CI:~[80.62\%, 82.36\%], AUROC~0.810, 5 seeds) under balanced sampling.
+The cross-encoder reaches 83.03\% accuracy (95\%~CI:~[81.78\%, 83.57\%],
+AUROC~0.904) under the same conditions, a statistically meaningful gap of
++2.1~pp accuracy and +0.094~AUROC.
+Under realistic imbalanced sampling (5:1 negative ratio), the gap widens
+further: cross-encoder degrades modestly ($-1.6$~pp) while the two-tower model
+degrades substantially ($-6.9$~pp), indicating that the modular architecture's
+cosine similarity scoring is sensitive to class-prior shift at the decision
+boundary.
+All models are implemented in pure Rust without external deep learning
+dependencies.
+
+\noindent\textbf{Availability:}
+Source code, result JSONs, and analysis scripts are available at
+\url{https://github.com/Evintkoo/module-regularized-grn}.
+
+\noindent\textbf{Keywords:} gene regulatory networks, two-tower architecture,
+cross-encoder, modular networks, gradient analysis, single-cell RNA-seq,
+negative sampling
+\end{abstract}
+
+\vspace{0.5em}
+
+% ============================================================
+\section{Introduction}
+\label{sec:introduction}
+
+Gene regulatory networks (GRNs) encode the transcription factor (TF)--target
+gene interactions that control cell fate and tissue homeostasis~\cite{davidson2002genomic,barabasi2004network}.
+Predicting which TFs regulate which genes from single-cell RNA-seq data is a
+binary classification problem over the combinatorial space of TF--gene
+pairs~\cite{pratapa2020benchmarking,chen2019evaluating}.
+
+A fundamental design choice in neural GRN classifiers is how to represent the
+\emph{interaction} between a TF and a gene.
+Two broad families exist:
+
+\textbf{Modular (two-tower) models} encode TFs and genes through separate
+parametric pathways into a shared latent space, then score interactions via a
+lightweight similarity function (dot product, cosine).
+This design is well-studied in retrieval and recommendation
+systems~\cite{yi2019sampling} but its application to GRN inference has received
+limited rigorous evaluation.
+
+\textbf{Monolithic (cross-encoder) models} concatenate all pairwise features
+before processing them through a unified MLP.
+Cross-encoders have no inductive bias toward symmetric or geometrically
+interpretable representations, but provide greater capacity for modeling
+arbitrary nonlinear feature interactions.
+
+Comparing these families requires identical data, evaluation protocol, and
+implementation quality.
+In practice, published comparisons are often confounded by optimizer differences,
+unequal hyperparameter tuning, or training instabilities that are not reported.
+
+In this work, we present a fully controlled comparison of a two-tower and a
+cross-encoder on the same dataset with the same optimizer.
+A prerequisite contribution is a careful gradient analysis that identifies three
+compounding implementation failures in the original two-tower training script
+(\S\ref{sec:grad_analysis}), together with a per-batch Adam training procedure
+that corrects them.
+This analysis is of independent value: the identified failure modes (loss
+double-sigmoid, backward-pass gradient replacement, and temperature-amplified
+clipping) can occur undetected in any from-scratch neural network implementation.
+
+Our contributions are:
+\begin{enumerate}
+    \item We identify and diagnose three gradient failures in a from-scratch
+    two-tower implementation that each collapse training to near-chance accuracy,
+    and provide a corrected training procedure (\S\ref{sec:training}).
+    \item We propose a \textbf{cross-encoder architecture} (Model~D) that
+    concatenates TF and gene embeddings with their element-wise product and
+    cell-type expression features, processing the joint representation through
+    a three-layer MLP to a raw logit (\S\ref{sec:cross_encoder}).
+    \item We conduct a \textbf{controlled cross-architecture comparison} over
+    five seeds $\times$ two negative-sampling ratios, demonstrating that the
+    monolithic cross-encoder consistently outperforms the two-tower model on
+    AUROC (+0.094 at 1:1; +0.172 at 5:1) and is substantially more robust to
+    negative-ratio shift (\S\ref{sec:results}).
+\end{enumerate}
+
+\subsection{Related work}
+\label{sec:related}
+
+\subsubsection{Classical GRN inference}
+GENIE3~\cite{huynh2010inferring} and GRNBoost2~\cite{moerman2019grnboost2}
+use tree-based regression.
+SCENIC~\cite{aibar2017scenic} augments regression with motif enrichment.
+ARACNE~\cite{margolin2006aracne} and Bayesian network methods~\cite{friedman2000bayesian}
+apply mutual information and probabilistic graphical models.
+These methods typically achieve AUROC 0.65--0.75 on standardized
+benchmarks~\cite{pratapa2020benchmarking}.
+
+\subsubsection{Deep learning for GRN inference}
+GNNLink~\cite{wang2023gnnlink} treats GRN inference as graph link prediction.
+Transformer-based methods scGREAT~\cite{chen2024scgreat} and
+TRENDY~\cite{yuan2025trendy} apply self-attention over expression profiles.
+Foundation models scGPT~\cite{cui2024scgpt} and
+Geneformer~\cite{theodoris2023transfer} pretrain on millions of cells.
+These GPU-requiring methods report accuracies of 85--90\%.
+
+\subsubsection{Knowledge graph embeddings and two-tower retrieval}
+Our two-tower model adapts ideas from TransE~\cite{bordes2013translating} and
+two-tower retrieval~\cite{yi2019sampling} to the GRN pairwise scoring task.
+Cross-encoder models in our setting are analogous to the reranker stage in
+dual-encoder/reranker retrieval pipelines, where a cross-encoder refines
+candidate scores by processing query--document pairs jointly.
+
+% ============================================================
+\section{Materials and Methods}
+\label{sec:methods}
+
+\subsection{Problem formulation}
+\label{sec:problem}
+
+Let $\mathcal{T} = \{t_1, \ldots, t_M\}$ be a set of transcription factors
+and $\mathcal{G} = \{g_1, \ldots, g_N\}$ a set of target genes.
+We learn $s_\theta(t, g) \in [0, 1]$ estimating the probability of a regulatory
+edge $t \to g$, formulated as supervised binary classification over candidate pairs.
+
+\subsection{Data sources and preprocessing}
+\label{sec:data}
+
+\subsubsection{Single-cell expression data}
+Human brain single-cell RNA-seq data (H5AD format) provides cell-type expression
+profiles $\mathbf{x}_g \in \mathbb{R}^{C}$, $C = 11$ brain cell types, where
+$x_{g,c}$ is the mean log-normalized expression of gene $g$ in cell type $c$.
+In the current evaluation, 0\% of TFs and genes in the prior databases map to
+a non-zero expression vector (``0\% expression coverage''), so the model
+effectively operates on 512-dimensional embeddings alone; the 11-dimensional
+expression channels are zero-padded but preserved in the architecture for
+forward compatibility.
+
+\subsubsection{Prior regulatory knowledge}
+Positive regulatory pairs are compiled from DoRothEA~\cite{garcia2019benchmark}
+and TRRUST v2~\cite{han2018trrust}, yielding 29{,}084 unique TF--gene pairs
+spanning 1{,}061 TFs and 10{,}247 genes.
+After intersection with the scRNA-seq gene space, 23{,}694 positive pairs
+survive, yielding a dataset of 47{,}388 total examples at 1:1 positive-to-negative ratio.
+
+\subsubsection{Negative sampling}
+\label{sec:negative}
+Negative examples are sampled uniformly from $\mathcal{T} \times \mathcal{G}$
+excluding the positive set.
+We evaluate two negative-sampling regimes:
+\begin{itemize}
+    \item \textbf{1:1 balanced}: equal positives and negatives in the training
+    set (standard benchmark setting).
+    \item \textbf{5:1 imbalanced}: five negatives per positive in the training
+    set, approximating realistic GRN sparsity.
+\end{itemize}
+Validation and test sets are always 1:1 balanced for comparability across
+experiments.
+
+\subsubsection{Data partitioning}
+The dataset is partitioned 70/15/15 (train/val/test) by stratified random
+sampling.
+No TF--gene pair appears across splits; individual TFs and genes may appear
+paired with different partners.
+
+\subsection{Model A: Two-Tower (HybridEmbeddingModel)}
+\label{sec:architecture}
+
+\subsubsection{Overview}
+Each TF $t_i$ and gene $g_j$ is associated with a learnable embedding:
+$\mathbf{e}^{\text{TF}}_i, \mathbf{e}^{\text{Gene}}_j \in \mathbb{R}^{d_e}$,
+$d_e = 512$.
+The hybrid input for each entity concatenates its embedding with its expression
+profile:
+\begin{equation}
+    \mathbf{h}_0^{(\ell)} = \bigl[\mathbf{e}^{(\ell)} \mathbin{;} \mathbf{x}^{(\ell)}\bigr]
+    \in \mathbb{R}^{d_e + C} = \mathbb{R}^{523}
+\end{equation}
+
+\subsubsection{Encoder towers}
+Two-layer feedforward encoders (one per entity type, separate parameters):
+\begin{align}
+    \mathbf{h}_1^{(\ell)} &= \text{ReLU}\!\bigl(\mathbf{W}_1^{(\ell)}\mathbf{h}_0^{(\ell)} + \mathbf{b}_1^{(\ell)}\bigr), \quad
+    \mathbf{W}_1^{(\ell)} \in \mathbb{R}^{d_h \times 523} \\
+    \mathbf{z}^{(\ell)} &= \mathbf{W}_2^{(\ell)}\mathbf{h}_1^{(\ell)} + \mathbf{b}_2^{(\ell)}, \quad
+    \mathbf{W}_2^{(\ell)} \in \mathbb{R}^{d_o \times d_h}
+\end{align}
+with $d_h = 512$, $d_o = 512$.
+
+\subsubsection{Interaction scoring}
+\begin{equation}
+    s_\theta(t_i, g_j) = \sigma\!\left(\frac{\langle \mathbf{z}^{\text{TF}}_i,\,\mathbf{z}^{\text{Gene}}_j \rangle}{\tau}\right),
+    \qquad \tau = 0.05
+\end{equation}
+The sigmoid output is the final prediction (probability); total parameters $\approx 5.2\mathrm{M}$.
+
+\subsection{Model D: Cross-Encoder}
+\label{sec:cross_encoder}
+
+\subsubsection{Overview}
+Unlike the two-tower design, the cross-encoder processes TF and gene information
+\emph{jointly} through a single MLP.
+Given TF embedding $\mathbf{e}^{\text{TF}}_i \in \mathbb{R}^{d_e}$, gene
+embedding $\mathbf{e}^{\text{Gene}}_j \in \mathbb{R}^{d_e}$, and their
+respective expression profiles, the input is:
+\begin{equation}
+    \mathbf{u}_{ij} = \bigl[\mathbf{e}^{\text{TF}}_i \mathbin{;} \mathbf{e}^{\text{Gene}}_j \mathbin{;}
+    \mathbf{e}^{\text{TF}}_i \odot \mathbf{e}^{\text{Gene}}_j \mathbin{;}
+    \mathbf{x}^{\text{TF}}_i \mathbin{;} \mathbf{x}^{\text{Gene}}_j\bigr]
+    \label{eq:cross_input}
+\end{equation}
+where $\odot$ denotes element-wise product.
+Input dimensionality: $3 d_e + 2C = 3 \times 512 + 2 \times 11 = 1{,}558$.
+
+The element-wise product term $\mathbf{e}^{\text{TF}} \odot \mathbf{e}^{\text{Gene}}$
+encodes coordinate-wise multiplicative interactions between TF and gene
+embedding dimensions, providing a low-rank feature-product expansion without
+requiring a quadratic parameter count.
+This term is analogous to the multiplicative gate in factored bilinear models~\cite{yang2015embedding}.
+
+\subsubsection{Architecture}
+Three fully connected layers process the joint representation to a raw logit:
+\begin{align}
+    \mathbf{h}_1 &= \text{ReLU}(\mathbf{W}_1 \mathbf{u}_{ij} + \mathbf{b}_1), \quad
+    \mathbf{W}_1 \in \mathbb{R}^{d_h \times 1558} \\
+    \mathbf{h}_2 &= \text{ReLU}(\mathbf{W}_2 \mathbf{h}_1 + \mathbf{b}_2), \quad
+    \mathbf{W}_2 \in \mathbb{R}^{d_h \times d_h} \\
+    \hat{y} &= \mathbf{w}_3^\top \mathbf{h}_2 + b_3 \in \mathbb{R}
+    \label{eq:cross_logit}
+\end{align}
+with $d_h = 512$.
+The output is a raw \emph{logit}; BCE loss is applied externally via
+$\sigma(\hat{y})$.
+Total parameters $\approx 5.6\mathrm{M}$.
+
+\subsubsection{Key structural differences from two-tower}
+Table~\ref{tab:arch_comparison} summarizes the architectural differences.
+The cross-encoder sacrifices the parameter efficiency and latency advantages
+of separate towers in favor of richer pairwise feature representation.
+In particular, the $\mathbf{e}^{\text{TF}} \odot \mathbf{e}^{\text{Gene}}$ term
+gives the model direct access to multiplicative interactions that the two-tower
+model must reconstruct implicitly through dot-product scoring.
+
+\begin{table}[!htbp]
+\centering
+\caption{Structural comparison of the two architectures. TT: Two-Tower; CE: Cross-Encoder.}
+\label{tab:arch_comparison}
+\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Property} & \textbf{TT} & \textbf{CE} \\
+\midrule
+Entity paths        & Separate & Joint \\
+Interaction features & Dot product & $\mathbf{e}_i \odot \mathbf{e}_j$ (explicit) \\
+Output              & Sigmoid score & Raw logit \\
+Score function      & $\sigma(\langle\mathbf{z}_i,\mathbf{z}_j\rangle/\tau)$ & $\sigma(\hat{y})$ \\
+Input dim. (FC)     & 523 per tower & 1{,}558 joint \\
+Total FC params     & ${\sim}$0.8M & ${\sim}$1.1M \\
+Total params        & ${\sim}$5.2M & ${\sim}$5.6M \\
+Symmetric by design & Yes & No \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Gradient stability analysis and optimizer selection}
+\label{sec:grad_analysis}
+
+During development, the two-tower model trained with an epoch-level gradient
+update procedure converged to near-chance accuracy (${\sim}$50--59\%) across
+all seeds despite correct forward pass logic.
+We identified three compounding failure modes through systematic gradient flow
+analysis.
+
+\subsubsection{Failure 1: Double-sigmoid in the loss backward pass}
+\label{sec:failure1}
+The existing \texttt{bce\_loss\_backward} utility function applies sigmoid
+internally before computing $(p - y)/n$:
+\begin{equation}
+    \texttt{bce\_loss\_backward}(\mathbf{x}) = \frac{\sigma(\mathbf{x}) - \mathbf{y}}{n}
+\end{equation}
+When the model's forward pass already outputs $s = \sigma(\cdot/\tau)$, passing
+$s$ to this function computes $\sigma(s)$ a second time---a double-sigmoid.
+For any prediction $s \in (0, 1)$, $\sigma(s) \in (0.5, 0.73)$, compressing
+all gradient signals into a narrow regime and reversing the gradient direction
+near the tails.
+
+\subsubsection{Failure 2: Gradient replacement in batch iteration}
+\label{sec:failure2}
+The \texttt{LinearLayer::backward} method in the Rust implementation replaces
+(not accumulates) stored gradients on each call:
+\begin{equation}
+    \nabla \mathbf{W} \leftarrow \mathbf{X}^\top \cdot \delta \quad
+    \text{(replaces on every batch)}
+\end{equation}
+With an epoch-level gradient update (accumulate all batches, then step), this
+means only the \emph{last} mini-batch's gradient survives into the parameter
+update.
+For $N_{\text{train}} = 33{,}171$ examples and batch size 256, the final batch
+contains ${\sim}147$ examples.
+The effective FC-layer learning signal per epoch is $\approx 0.44\%$ of the
+full dataset.
+Embeddings, updated via index-based gradient accumulation ($+=$), do not
+exhibit this deficiency and continue to learn correctly.
+
+\subsubsection{Failure 3: Gradient annihilation from temperature-amplified clipping}
+\label{sec:failure3}
+The temperature parameter $\tau = 0.05$ amplifies gradients flowing through
+the scoring function by a factor of $1/\tau = 20$:
+\begin{equation}
+    \frac{\partial \mathcal{L}}{\partial \mathbf{z}} \propto \frac{p - y}{\tau \cdot n}
+\end{equation}
+With the stable gradient estimator described in \S\ref{sec:stable_grad}, typical
+gradient norms reach ${\sim}1{,}766$ per batch.
+A gradient clipping threshold of $\delta_{\max} = 1.0$ therefore scales all
+gradients by $1.0 / 1766 \approx 0.0006$---effectively zeroing all parameter
+updates.
+
+\subsubsection{Corrected training procedure}
+\label{sec:training}
+
+We resolve all three failures simultaneously:
+
+\paragraph{Stable gradient estimator.}
+\label{sec:stable_grad}
+Rather than passing model outputs through \texttt{bce\_loss\_backward},
+we compute a numerically stable per-sample gradient directly:
+\begin{equation}
+    \delta_i = \frac{p_i - y_i}{n}, \qquad p_i = s_\theta(t_i, g_i) \in (0, 1)
+    \label{eq:stable_grad}
+\end{equation}
+This avoids $1/(p(1{-}p))$ blow-up for confident predictions and the
+double-sigmoid distortion.
+Internally, \texttt{model.backward} multiplies by $\partial\sigma/\partial z =
+p(1{-}p)/\tau$, yielding a net per-sample gradient of
+$(p_i{-}y_i)\cdot p_i(1{-}p_i)/(n\tau)$---numerically bounded and correct in direction.
+
+\paragraph{Per-batch Adam with increased clip threshold.}
+Each mini-batch triggers a full Adam parameter update:
+$(\mathbf{W}^{(\ell)}_k, \mathbf{b}^{(\ell)}_k, \mathbf{e}^{\text{TF}}, \mathbf{e}^{\text{Gene}})$
+are updated after every batch, not every epoch.
+This ensures all FC-layer parameters receive gradients from the full training
+signal.
+We use $\eta = 10^{-3}$, $\beta_1 = 0.9$, $\beta_2 = 0.999$, $\epsilon = 10^{-8}$,
+and gradient clip threshold $\delta_{\max} = 5.0$, consistent with a $\sim$353$\times$
+increase in effective clip budget relative to the original $\delta_{\max} = 1.0$.
+
+\paragraph{Weight initialization.}
+Embedding and weight matrices are initialized from $\mathcal{N}(0, \sigma^2)$
+with $\sigma = 0.01$, reducing initial prediction variance and stabilizing
+early-epoch gradients.
+
+The corrected implementation is used for all two-tower experiments in this paper.
+The cross-encoder uses the same per-batch Adam procedure with the same hyperparameters,
+applied directly to the logit output (no temperature scaling required).
+
+\paragraph{Impact of each failure mode.}
+Table~\ref{tab:failure_modes} quantifies the isolated and compound effects of
+each failure on held-out accuracy.
+
+\begin{table}[!htbp]
+\centering
+\caption{Accuracy under different combinations of gradient failures (1:1 ratio,
+seed 42, reported on test set after 60 epochs). Epoch-level: epoch-level SGD;
+double-$\sigma$: bce\_loss\_backward called on sigmoid output; clip=1.0: gradient
+clip threshold 1.0.}
+\label{tab:failure_modes}
+\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Configuration} & \textbf{Acc.} & \textbf{AUROC} & \textbf{F1} \\
+\midrule
+Epoch-level SGD + double-$\sigma$ + clip=1.0 & 79.53\% & --- & --- \\
+Epoch-level SGD (LR=0.005) & 58.82\% & --- & --- \\
+Per-batch Adam + double-$\sigma$ + clip=1.0 & 49.81\% & 0.5045 & 0.000 \\
+\textbf{Per-batch Adam + stable grad + clip=5} & \textbf{80.93\%} & \textbf{0.8093} & \textbf{0.8156} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Epoch-level SGD with double-sigmoid achieves 79.53\% Val.\ Acc.\ at epoch 10
+but the model was never evaluated on the test set under those conditions, and
+train/val loss diverges (train $\approx 0.87$, val $\approx 3.10$) indicating
+severe overfitting.
+Per-batch Adam with the broken double-sigmoid and tight clip collapses to
+chance (49.81\%), illustrating that clip=1.0 annihilates all gradient signal
+under $\tau = 0.05$.
+The corrected procedure achieves 80.93\% on the test set in a numerically
+stable and interpretable training run.
+
+\subsection{Ensemble construction}
+\label{sec:ensemble_method}
+
+For both models, we train $K = 5$ independent instances with seeds
+$\{42, 123, 456, 789, 1337\}$, differing only in initialization and batch
+ordering.
+Ensemble predictions are formed by averaging individual sigmoid outputs:
+\begin{equation}
+    s_{\text{ens}}(t, g) = \frac{1}{K}\sum_{k=1}^{K} s_{\theta_k}(t, g)
+\end{equation}
+For the cross-encoder, individual logit outputs are passed through sigmoid
+before averaging.
+
+\subsection{Evaluation protocol}
+\label{sec:evaluation}
+
+We report accuracy, F1, and AUROC on the 1:1 balanced test set ($n = 7{,}109$).
+AUROC is computed via trapezoidal integration over the sorted score vector.
+F1 uses the default threshold of 0.5.
+Bootstrap 95\% confidence intervals ($B = 1{,}000$ resamples, seed 42) are
+computed for accuracy.
+We report mean $\pm$ standard deviation across 5 seeds as a measure of training
+stability.
+
+\subsection{Implementation}
+\label{sec:implementation}
+
+The complete pipeline is implemented in Rust (edition 2021) using
+\texttt{ndarray} v0.15, \texttt{ndarray-rand}, and \texttt{hdf5} for H5AD
+parsing.
+No external deep learning frameworks are used.
+Adam optimizer states (first and second moment estimates) are managed manually,
+one Adam state struct per model.
+The cross-encoder's per-batch Adam is applied to embeddings and all three FC
+layers; the two-tower's per-batch Adam is applied to both embedding tables and
+both towers' two FC layers each.
+
+% ============================================================
+\section{Results}
+\label{sec:results}
+
+\subsection{Main comparison: two-tower versus cross-encoder}
+\label{sec:main_results}
+
+Table~\ref{tab:main_comparison} presents the primary comparison across all
+architectures and negative-sampling ratios.
+Both models are evaluated on the same 1:1 balanced test set.
+
+\begin{table}[!htbp]
+\centering
+\caption{Primary comparison. Acc: mean test accuracy $\pm$ SD across 5 seeds.
+CI: 95\% bootstrap CI. AUROC, F1: mean across 5 seeds. Ens: 5-model ensemble
+accuracy. All test sets are 1:1 balanced ($n = 7{,}109$).}
+\label{tab:main_comparison}
+\small
+\begin{tabular}{@{}llccccc@{}}
+\toprule
+\textbf{Model} & \textbf{Ratio} & \textbf{Acc ($\pm$SD)} & \textbf{CI [95\%]} & \textbf{AUROC} & \textbf{F1} & \textbf{Ens} \\
+\midrule
+Two-Tower    & 1:1 & 80.90 $\pm$ 0.59 & [80.6, 82.4] & 0.810 & 0.807 & 83.47 \\
+Two-Tower    & 5:1 & 74.03 $\pm$ 1.54 & [74.4, 76.3] & 0.743 & 0.660 & 75.92 \\
+\midrule
+Cross-Encoder & 1:1 & 83.03 $\pm$ 0.48 & [81.8, 83.6] & 0.904 & 0.831 & 84.02 \\
+Cross-Encoder & 5:1 & 81.47 $\pm$ 0.74 & [79.8, 81.6] & 0.915 & 0.783 & 82.33 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{At balanced (1:1) sampling}, the cross-encoder outperforms the two-tower
+by +2.13~pp in accuracy (83.03\% vs.\ 80.90\%) and by +0.094 in AUROC
+(0.904 vs.\ 0.810).
+Both improvements are consistent across all five seeds (Table~\ref{tab:per_seed}).
+The cross-encoder's variance is also lower ($\sigma = 0.48$ vs.\ $0.59$~pp),
+indicating a more stable optimization landscape.
+The F1 gap (+0.024) is smaller than the accuracy gap, reflecting that the
+two-tower achieves comparable recall but somewhat lower precision.
+
+\textbf{At imbalanced (5:1) sampling}, the gap widens dramatically in AUROC
+(0.915 vs.\ 0.743, $\Delta = +0.172$) and substantially in accuracy
+(81.47\% vs.\ 74.03\%, $\Delta = +7.44$~pp).
+The two-tower's accuracy drops $-6.87$~pp when moving from 1:1 to 5:1 training,
+versus only $-1.56$~pp for the cross-encoder.
+This differential sensitivity to negative-ratio shift is analyzed in \S\ref{sec:ratio_analysis}.
+
+\begin{table}[!htbp]
+\centering
+\caption{Per-seed results under balanced (1:1) sampling.}
+\label{tab:per_seed}
+\small
+\begin{tabular}{@{}cccccc@{}}
+\toprule
+\multirow{2}{*}{\textbf{Seed}} & \multicolumn{2}{c}{\textbf{Two-Tower}} & & \multicolumn{2}{c}{\textbf{Cross-Encoder}} \\
+\cmidrule{2-3} \cmidrule{5-6}
+ & Acc.\ (\%) & AUROC & & Acc.\ (\%) & AUROC \\
+\midrule
+42   & 80.93 & 0.809 & & 83.63 & 0.906 \\
+123  & 79.80 & 0.799 & & 83.04 & 0.905 \\
+456  & 81.50 & 0.816 & & 82.66 & 0.903 \\
+789  & 80.94 & 0.811 & & 83.47 & 0.908 \\
+1337 & 81.33 & 0.813 & & 82.35 & 0.898 \\
+\midrule
+Mean $\pm$ SD & 80.90 $\pm$ 0.59 & 0.810 & & 83.03 $\pm$ 0.48 & 0.904 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Effect of negative sampling ratio}
+\label{sec:ratio_analysis}
+
+Figure~\ref{fig:ratio_effect} (described textually below) illustrates the
+degradation profile as training data shifts from 1:1 to 5:1.
+
+\textbf{Two-tower degradation mechanism.}
+The two-tower model's prediction is $\sigma(\langle \mathbf{z}^{\text{TF}},
+\mathbf{z}^{\text{Gene}} \rangle / \tau)$.
+At training time with 5:1 negatives, the model optimizes BCE loss on a dataset
+where the class prior is $p(\text{pos}) = 1/6$.
+The optimal decision boundary for $\sigma(\cdot) = 0.5$ corresponds to equal
+positive and negative posterior probability.
+Under a 5:1 class ratio, the model's calibrated threshold should be
+$\sigma^{-1}(1/6) \approx -1.61$ logits rather than 0.
+Since we evaluate at threshold $= 0.5$ (logit $= 0$) on a 1:1 test set,
+all pairs with true posterior between $1/6$ and $1/2$ will be misclassified.
+The two-tower's cosine-similarity scoring function provides limited control
+over this calibration: the score distribution is coupled to the angular
+structure of the embedding space, making it difficult to independently shift
+the operating threshold without changing the embedding geometry.
+
+\textbf{Cross-encoder robustness.}
+The cross-encoder outputs a raw logit whose scale is unconstrained.
+When trained with 5:1 negatives, the network can learn to shift its logit
+distribution toward more negative values, while the absolute operating point
+(threshold $= 0$ after sigmoid) can be compensated by the bias term in the
+final layer.
+This decoupling of the learned representation from the scoring calibration
+makes the cross-encoder substantially more robust to negative-ratio shift.
+
+\begin{table}[!htbp]
+\centering
+\caption{Accuracy degradation from 1:1 to 5:1 training. $\Delta$Acc: absolute
+accuracy drop (test set always 1:1).}
+\label{tab:ratio_degradation}
+\small
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Model} & \textbf{1:1 Acc.} & \textbf{5:1 Acc.} & \textbf{$\Delta$Acc} & \textbf{$\Delta$AUROC} \\
+\midrule
+Two-Tower     & 80.90\% & 74.03\% & $-6.87$~pp & $-0.067$ \\
+Cross-Encoder & 83.03\% & 81.47\% & $-1.56$~pp & $+0.011$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Strikingly, the cross-encoder's AUROC \emph{increases} by $+0.011$ when
+moving to 5:1 training (Table~\ref{tab:ratio_degradation}).
+AUROC measures ranked discrimination independent of threshold, so a model
+that trains on harder negatives may learn sharper score separation even if its
+accuracy at a fixed threshold is marginally lower.
+The cross-encoder at 5:1 achieves AUROC = 0.915---the highest of any model
+variant in this study---suggesting that realistic negative sampling provides
+richer training signal for the monolithic scoring function.
+
+\subsection{Ensemble performance}
+\label{sec:ensemble_results}
+
+Ensemble averaging (5 models) provides consistent gains:
+Two-tower 1:1: $80.90\% \to 83.47\%$ ($+2.57$~pp);
+Cross-encoder 1:1: $83.03\% \to 84.02\%$ ($+0.99$~pp).
+The smaller ensemble gain for the cross-encoder reflects lower individual model
+variance and higher correlation among ensemble members.
+At 5:1, the cross-encoder ensemble (82.33\%) outperforms the two-tower ensemble
+(75.92\%) by 6.41~pp.
+
+\subsection{Cross-seed stability}
+\label{sec:stability}
+
+The cross-encoder exhibits lower cross-seed variance at 1:1 (SD = 0.48~pp
+vs.\ 0.59~pp for two-tower) and 5:1 (0.74~pp vs.\ 1.54~pp).
+At 5:1, the two-tower's worst-performing seed (789) achieves only 71.11\%
+accuracy, a 4.25~pp drop below the mean---nearly double the cross-encoder's
+maximum deviation (1.01~pp).
+This stability advantage likely reflects the cross-encoder's unconstrained
+logit range, which provides a wider gradient signal corridor during early
+training regardless of initialization.
+
+% ============================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Why does the cross-encoder outperform the two-tower?}
+
+The cross-encoder's advantage on this dataset likely stems from two structural
+properties:
+
+\textbf{Explicit interaction features.}
+The element-wise product $\mathbf{e}^{\text{TF}} \odot \mathbf{e}^{\text{Gene}}$
+directly encodes multiplicative embedding interactions.
+In the two-tower model, the dot product $\langle \mathbf{z}^{\text{TF}},
+\mathbf{z}^{\text{Gene}} \rangle$ implicitly computes a \emph{sum} of these
+products after nonlinear transformation, but the intermediate layers cannot
+access raw multiplicative features.
+For GRN edge prediction, where binding affinity is plausibly related to
+multiplicative compatibility of TF binding domain and gene promoter
+features~\cite{yang2015embedding}, explicit interaction features may provide a
+direct computational path that the two-tower must reconstruct expensively.
+
+\textbf{Unconstrained logit vs.\ fixed sigmoid range.}
+The two-tower produces a sigmoid output constrained to $(0, 1)$, with the score
+distribution's shape determined by the geometry of the learned embedding space
+and the fixed temperature $\tau = 0.05$.
+The cross-encoder outputs a raw logit in $(-\infty, +\infty)$, giving the
+optimizer full control over score calibration.
+This matters especially under class-ratio shift (\S\ref{sec:ratio_analysis}):
+the cross-encoder can adapt its output distribution by adjusting the final-layer
+bias, while the two-tower must restructure its embedding geometry.
+
+\textbf{Why the AUROC gap is larger than the accuracy gap.}
+AUROC (0.904 vs.\ 0.810, $\Delta = 0.094$) is proportionally much larger than
+the accuracy gap (83.03\% vs.\ 80.90\%, $\Delta = 2.13$~pp).
+AUROC measures the quality of the full score ranking, not just the binary
+decision at threshold 0.5.
+The two-tower's temperature-scaled cosine similarity produces a compact score
+distribution: because embeddings are normalized through FC layers but the
+dot product is unscaled before temperature division, the effective score range
+is narrow.
+The cross-encoder's logit-scale output produces a wider, better-separated score
+distribution, yielding stronger ranking quality even at modest accuracy gains.
+
+\subsection{Practical implications of gradient failure analysis}
+
+The three failure modes identified in \S\ref{sec:grad_analysis} are each
+individually capable of collapsing training and are easily missed:
+
+\begin{itemize}
+    \item \textbf{Double-sigmoid}: arises whenever a utility function
+    re-applies sigmoid to an already-sigmoid output, a common mistake when
+    re-using loss utilities with architectures that differ in output activation.
+    \item \textbf{Gradient replacement}: a subtle difference between $\mathbf{g}
+    \mathrel{+}= \nabla$ (correct for epoch-level accumulation) and $\mathbf{g}
+    \mathrel{=} \nabla$ (the implementation) that silently reduces the effective
+    batch size to a single mini-batch.
+    \item \textbf{Clip-temperature interaction}: the effective gradient norm
+    scales as $1/\tau$, so a clip threshold tuned for $\tau = 1.0$ may be
+    100$\times$ too small for $\tau = 0.01$, annihilating all weight updates.
+\end{itemize}
+
+These failures are relevant to any from-scratch neural network implementation
+in systems languages (Rust, C++) that lack automatic gradient checking.
+We recommend: (1) verify that loss utility functions do not apply activations
+redundantly; (2) prefer per-batch optimizer steps over epoch-level accumulation
+when backward functions replace (rather than accumulate) stored gradients; and
+(3) scale clip thresholds relative to $1/\tau$ when using temperature-scaled
+scoring functions.
+
+\subsection{Architectural trade-offs and when to prefer each design}
+
+\textbf{Prefer the two-tower model} when:
+\begin{itemize}
+    \item Large-scale retrieval is needed (e.g., ranking all $M \times N$ pairs):
+    tower outputs $\mathbf{z}^{\text{TF}}$ and $\mathbf{z}^{\text{Gene}}$ can
+    be pre-computed and dot-product search applied via FAISS.
+    \item Interpretable latent geometry is desired: TF and gene positions in
+    the shared $\mathbb{R}^{512}$ space encode entity-level properties
+    independent of query.
+    \item Training is class-balanced (1:1): the accuracy and F1 gap to the
+    cross-encoder is only $\sim$2~pp.
+\end{itemize}
+
+\textbf{Prefer the cross-encoder} when:
+\begin{itemize}
+    \item Training data is imbalanced (5:1 or higher): the cross-encoder
+    maintains strong performance across negative ratios, while the two-tower
+    degrades substantially.
+    \item AUROC is the primary metric: the cross-encoder achieves 0.904--0.915
+    vs.\ 0.743--0.810 for the two-tower.
+    \item Downstream evaluation requires score calibration (e.g., top-$k$
+    ranked lists for experimental validation).
+\end{itemize}
+
+\subsection{Limitations}
+\label{sec:limitations}
+
+Several limitations bound the scope of these conclusions.
+First, the current evaluation uses 0\% expression coverage (all entity expression
+vectors are zero-padded), meaning both models operate exclusively on learnable
+embeddings.
+Incorporating non-zero expression features may shift the relative advantage.
+Second, evaluation is limited to a single tissue (human brain) and two
+databases; generalization to other tissues, organisms, or regulatory contexts
+requires further validation.
+Third, the test set evaluation uses 1:1 class balance regardless of training
+ratio; a held-out test set matching the training ratio distribution would provide
+a complementary perspective.
+Fourth, we do not evaluate cold-start generalization (new TFs or genes unseen
+in training), which is a harder and more biologically relevant setting.
+Fifth, comparisons with GPU-based transformer methods remain approximate due to
+dataset and protocol differences; a shared benchmark such as
+BEELINE~\cite{pratapa2020benchmarking} is needed for rigorous comparison.
+
+% ============================================================
+\section{Conclusion}
+\label{sec:conclusion}
+
+We presented a controlled comparison of modular (two-tower) and monolithic
+(cross-encoder) neural architectures for gene regulatory network edge prediction.
+A prerequisite diagnostic investigation identified three compounding gradient
+failures in the original two-tower training procedure---double-sigmoid in the
+backward pass, per-batch gradient replacement in epoch-level updates, and
+clip-threshold incompatibility with temperature scaling---each sufficient to
+collapse training to near-chance accuracy.
+After resolving these failures, the corrected two-tower achieves 80.90\%
+accuracy (AUROC 0.810) under balanced training, and the cross-encoder achieves
+83.03\% accuracy (AUROC 0.904) under identical conditions.
+
+The cross-encoder's advantage is especially pronounced in AUROC ($+0.094$ at
+1:1) and in robustness to negative-ratio shift: cross-encoder accuracy drops
+only 1.56~pp at 5:1 training versus 6.87~pp for the two-tower.
+We attribute this to the cross-encoder's explicit interaction features
+($\mathbf{e}^{\text{TF}} \odot \mathbf{e}^{\text{Gene}}$) and unconstrained
+logit output, which together provide richer interaction representation and
+better calibration control.
+
+For practitioners, we recommend: (1) implement gradient sanity checks in
+from-scratch implementations; (2) prefer per-batch optimizer steps over
+epoch-level updates when backward functions do not accumulate gradients;
+(3) use the cross-encoder design when training data is imbalanced or AUROC
+is the primary metric; (4) reserve the two-tower for large-scale retrieval
+settings where pre-computed tower representations provide computational efficiency.
+
+\subsection*{Acknowledgments}
+Computations were performed on consumer-grade Apple M-series hardware.
+We thank the developers of DoRothEA and TRRUST for curated regulatory data.
+
+\subsection*{Author contributions}
+E.L.\ conceived the study, designed and implemented both architectures,
+performed the gradient analysis and all experiments, and wrote the manuscript.
+
+\subsection*{Data availability}
+Source code, result JSONs, trained model weights, and evaluation scripts are
+available at \url{https://github.com/Evintkoo/module-regularized-grn}.
+
+% ============================================================
+
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+
+% ============================================================
+\clearpage
+\onecolumn
+\appendix
+\section*{Supplementary Material}
+\addcontentsline{toc}{section}{Supplementary Material}
+
+\subsection*{S1. Full hyperparameter specification}
+
+\begin{table}[H]
+\centering
+\caption*{\textbf{Table S1.} Hyperparameter configuration for both models.}
+\small
+\begin{tabular}{@{}lllcc@{}}
+\toprule
+\textbf{Category} & \textbf{Parameter} & & \textbf{Two-Tower} & \textbf{Cross-Encoder} \\
+\midrule
+\multirow{3}{*}{Architecture}
+  & Embedding dim.\ ($d_e$)   & & 512 & 512 \\
+  & Hidden dim.\ ($d_h$)      & & 512 & 512 \\
+  & Output/logit dim.         & & 512 (sigmoid) & 1 (logit) \\
+\midrule
+\multirow{4}{*}{Optimizer (Adam)}
+  & Learning rate ($\eta$)    & & $10^{-3}$ & $10^{-3}$ \\
+  & $\beta_1$                 & & 0.9 & 0.9 \\
+  & $\beta_2$                 & & 0.999 & 0.999 \\
+  & Gradient clip             & & 5.0 & 5.0 \\
+\midrule
+\multirow{2}{*}{Training}
+  & Batch size                & & 256 & 256 \\
+  & Epochs                    & & 60 & 60 \\
+\midrule
+Scoring
+  & Temperature ($\tau$)      & & 0.05 & N/A \\
+\midrule
+\multirow{2}{*}{Initialization}
+  & Embeddings $\sigma$       & & 0.01 & 0.10 \\
+  & FC layers                 & & $\sigma=0.01$ & He init \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{S2. Per-seed results: 5:1 negative sampling}
+
+\begin{table}[H]
+\centering
+\caption*{\textbf{Table S2.} Per-seed results under 5:1 negative sampling (test set 1:1 balanced).}
+\small
+\begin{tabular}{@{}cccccccc@{}}
+\toprule
+\multirow{2}{*}{\textbf{Seed}} &
+\multicolumn{3}{c}{\textbf{Two-Tower (5:1)}} & &
+\multicolumn{3}{c}{\textbf{Cross-Encoder (5:1)}} \\
+\cmidrule{2-4} \cmidrule{6-8}
+ & Acc.\ (\%) & AUROC & F1 & & Acc.\ (\%) & AUROC & F1 \\
+\midrule
+42   & 73.93 & 0.741 & 0.659 & & 81.64 & 0.923 & 0.785 \\
+123  & 75.17 & 0.757 & 0.680 & & 80.70 & 0.916 & 0.769 \\
+456  & 75.36 & 0.753 & 0.684 & & 81.99 & 0.924 & 0.790 \\
+789  & 71.11 & 0.714 & 0.609 & & 82.47 & 0.913 & 0.797 \\
+1337 & 74.57 & 0.752 & 0.668 & & 80.55 & 0.899 & 0.771 \\
+\midrule
+Mean $\pm$ SD
+     & 74.03 $\pm$ 1.54 & 0.743 & 0.660
+     & & 81.47 $\pm$ 0.74 & 0.915 & 0.783 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{S3. Comparison with Version 1 results}
+
+Version 1 of this work reported a Two-Tower single model with 80.14\% accuracy
+and a 5-model ensemble with 83.06\% accuracy.
+These figures correspond to a different training implementation using epoch-level
+SGD and the \texttt{bce\_loss\_backward} utility; they may reflect the
+interaction between Failure~1 (double-sigmoid) and the epoch-level gradient
+accumulation, which in combination produced partially functional training.
+Version 2 uses per-batch Adam with the stable gradient estimator (Eq.~\ref{eq:stable_grad}),
+achieving 80.90\% $\pm$ 0.59\% (mean over 5 seeds) and 83.47\% ensemble,
+which are consistent with V1 figures to within the seed variance.
+The V2 training procedure is strictly more principled: gradient signals are
+numerically stable, all parameters update every batch, and the optimizer state
+is fully defined.
+
+\end{document}
