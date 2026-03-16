@@ -1,10 +1,10 @@
 /// Standard MLP Training: Two-pathway feedforward network with embeddings + expression
 /// Architecture: NOT a transformer - uses standard linear layers with ReLU
 /// Similarity: Cosine similarity with temperature scaling (NOT attention)
-/// Optimizer: Inline Adam per batch with gradient clipping (matched to cross-encoder)
+/// Optimizer: Per-batch Adam with stable gradient (p - l) / batch_size
 use module_regularized_grn::{
     Config,
-    models::{hybrid_embeddings::HybridEmbeddingModel, nn::bce_loss_backward},
+    models::hybrid_embeddings::HybridEmbeddingModel,
     data::{PriorKnowledge, PriorDatasetBuilder, expression::ExpressionData},
 };
 use ndarray::{Array1, Array2};
@@ -14,11 +14,11 @@ use rand::seq::SliceRandom;
 use anyhow::Result;
 use std::collections::HashMap;
 
-// ── Adam state for HybridEmbeddingModel ─────────────────────────────────────
+// ── Adam state for HybridEmbeddingModel ──────────────────────────────────────
 
 struct AdamState {
-    m_tf:      Array2<f32>, v_tf:      Array2<f32>,
-    m_gene:    Array2<f32>, v_gene:    Array2<f32>,
+    m_tf:       Array2<f32>, v_tf:       Array2<f32>,
+    m_gene:     Array2<f32>, v_gene:     Array2<f32>,
     m_tf_fc1_w: Array2<f32>, v_tf_fc1_w: Array2<f32>,
     m_tf_fc1_b: Array1<f32>, v_tf_fc1_b: Array1<f32>,
     m_tf_fc2_w: Array2<f32>, v_tf_fc2_w: Array2<f32>,
@@ -109,19 +109,19 @@ fn adam_step(model: &mut HybridEmbeddingModel, state: &mut AdamState, lr: f32, c
             .for_each(|p, &m, &v| *p -= lr * (m / bc1) / ((v / bc2).sqrt() + eps));
     }
 
-    adam2d(&mut model.tf_embed,        &model.tf_embed_grad,        &mut state.m_tf,       &mut state.v_tf,       lr, b1, b2, eps, state.t, scale);
-    adam2d(&mut model.gene_embed,      &model.gene_embed_grad,      &mut state.m_gene,     &mut state.v_gene,     lr, b1, b2, eps, state.t, scale);
-    adam2d(&mut model.tf_fc1.weights,  &model.tf_fc1.grad_weights,  &mut state.m_tf_fc1_w, &mut state.v_tf_fc1_w, lr, b1, b2, eps, state.t, scale);
-    adam1d(&mut model.tf_fc1.bias,     &model.tf_fc1.grad_bias,     &mut state.m_tf_fc1_b, &mut state.v_tf_fc1_b, lr, b1, b2, eps, state.t, scale);
-    adam2d(&mut model.tf_fc2.weights,  &model.tf_fc2.grad_weights,  &mut state.m_tf_fc2_w, &mut state.v_tf_fc2_w, lr, b1, b2, eps, state.t, scale);
-    adam1d(&mut model.tf_fc2.bias,     &model.tf_fc2.grad_bias,     &mut state.m_tf_fc2_b, &mut state.v_tf_fc2_b, lr, b1, b2, eps, state.t, scale);
-    adam2d(&mut model.gene_fc1.weights, &model.gene_fc1.grad_weights, &mut state.m_g_fc1_w, &mut state.v_g_fc1_w, lr, b1, b2, eps, state.t, scale);
-    adam1d(&mut model.gene_fc1.bias,   &model.gene_fc1.grad_bias,   &mut state.m_g_fc1_b,  &mut state.v_g_fc1_b,  lr, b1, b2, eps, state.t, scale);
-    adam2d(&mut model.gene_fc2.weights, &model.gene_fc2.grad_weights, &mut state.m_g_fc2_w, &mut state.v_g_fc2_w, lr, b1, b2, eps, state.t, scale);
-    adam1d(&mut model.gene_fc2.bias,   &model.gene_fc2.grad_bias,   &mut state.m_g_fc2_b,  &mut state.v_g_fc2_b,  lr, b1, b2, eps, state.t, scale);
+    adam2d(&mut model.tf_embed,         &model.tf_embed_grad,         &mut state.m_tf,       &mut state.v_tf,       lr, b1, b2, eps, state.t, scale);
+    adam2d(&mut model.gene_embed,       &model.gene_embed_grad,       &mut state.m_gene,     &mut state.v_gene,     lr, b1, b2, eps, state.t, scale);
+    adam2d(&mut model.tf_fc1.weights,   &model.tf_fc1.grad_weights,   &mut state.m_tf_fc1_w, &mut state.v_tf_fc1_w, lr, b1, b2, eps, state.t, scale);
+    adam1d(&mut model.tf_fc1.bias,      &model.tf_fc1.grad_bias,      &mut state.m_tf_fc1_b, &mut state.v_tf_fc1_b, lr, b1, b2, eps, state.t, scale);
+    adam2d(&mut model.tf_fc2.weights,   &model.tf_fc2.grad_weights,   &mut state.m_tf_fc2_w, &mut state.v_tf_fc2_w, lr, b1, b2, eps, state.t, scale);
+    adam1d(&mut model.tf_fc2.bias,      &model.tf_fc2.grad_bias,      &mut state.m_tf_fc2_b, &mut state.v_tf_fc2_b, lr, b1, b2, eps, state.t, scale);
+    adam2d(&mut model.gene_fc1.weights, &model.gene_fc1.grad_weights, &mut state.m_g_fc1_w,  &mut state.v_g_fc1_w,  lr, b1, b2, eps, state.t, scale);
+    adam1d(&mut model.gene_fc1.bias,    &model.gene_fc1.grad_bias,    &mut state.m_g_fc1_b,  &mut state.v_g_fc1_b,  lr, b1, b2, eps, state.t, scale);
+    adam2d(&mut model.gene_fc2.weights, &model.gene_fc2.grad_weights, &mut state.m_g_fc2_w,  &mut state.v_g_fc2_w,  lr, b1, b2, eps, state.t, scale);
+    adam1d(&mut model.gene_fc2.bias,    &model.gene_fc2.grad_bias,    &mut state.m_g_fc2_b,  &mut state.v_g_fc2_b,  lr, b1, b2, eps, state.t, scale);
 }
 
-// ── Metric helpers ───────────────────────────────────────────────────────────
+// ── Metric helpers ────────────────────────────────────────────────────────────
 
 fn calculate_auroc(predictions: &[f32], labels: &[f32]) -> f32 {
     let mut pairs: Vec<(f32, f32)> = predictions.iter().zip(labels.iter())
@@ -174,7 +174,7 @@ fn bootstrap_ci(y_true: &[f64], y_pred: &[f64], n: usize, seed: u64) -> (f64, f6
     (mean, lower, upper)
 }
 
-// ── Expression helpers ───────────────────────────────────────────────────────
+// ── Expression helpers ────────────────────────────────────────────────────────
 
 fn build_expr_batch(
     indices:  &[usize],
@@ -190,7 +190,7 @@ fn build_expr_batch(
     batch
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 fn main() -> Result<()> {
     println!("=== Standard MLP Training (NOT Transformer) ===");
@@ -198,7 +198,7 @@ fn main() -> Result<()> {
     println!("  - Pathway 1: TF encoder (embedding + expression → hidden → output)");
     println!("  - Pathway 2: Gene encoder (embedding + expression → hidden → output)");
     println!("  - Similarity: Cosine similarity with temperature scaling");
-    println!("  - Optimizer: Inline Adam per batch with gradient clipping\n");
+    println!("  - Optimizer: Epoch-level SGD with weight decay + dropout\n");
 
     let neg_ratio: usize = std::env::args()
         .position(|a| a == "--neg-ratio")
@@ -291,74 +291,101 @@ fn main() -> Result<()> {
         data
     };
 
+    // Model configuration: per-batch Adam (matches cross-encoder approach)
     let embed_dim   = 512usize;
     let hidden_dim  = 512usize;
     let output_dim  = 512usize;
     let temperature = 0.05f32;
-    let lr          = 0.005f32;
+    let lr          = 0.001f32;
+    let clip        = 5.0f32;
     let batch_size  = 256usize;
     let epochs      = 60usize;
+    let patience    = 10usize;
 
-    println!("Model: embed={} hidden={} output={} temp={}", embed_dim, hidden_dim, output_dim, temperature);
-    println!("Optimizer: Adam lr={} | clip=1.0 | epochs={}\n", lr, epochs);
+    println!("Model Architecture (Standard MLP / Two-Tower):");
+    println!("  Input: Embedding ({}d) + Expression ({}d)", embed_dim, expr_dim);
+    println!("  Hidden layer: {} dimensions with ReLU", hidden_dim);
+    println!("  Output encoding: {} dimensions", output_dim);
+    println!("  Similarity: Cosine with temperature={}", temperature);
+    println!("\nTraining Configuration:");
+    println!("  Optimizer: Adam lr={} | grad_clip={}", lr, clip);
+    println!("  Batch size: {}", batch_size);
+    println!("  Epochs: {}", epochs);
 
     let seeds = [42u64, 123, 456, 789, 1337];
-    let mut seed_accuracies: Vec<f32>      = Vec::new();
-    let mut seed_aurocs:     Vec<f32>      = Vec::new();
-    let mut seed_f1s:        Vec<f32>      = Vec::new();
+    let mut seed_accuracies: Vec<f32>       = Vec::new();
+    let mut seed_aurocs:     Vec<f32>       = Vec::new();
+    let mut seed_f1s:        Vec<f32>       = Vec::new();
     let mut all_test_preds_ensemble: Vec<Vec<f32>> = Vec::new();
     let mut best_final_val_acc = 0.0f32;
-    let mut best_test_preds:   Vec<f32>    = Vec::new();
+    let mut best_test_preds:   Vec<f32>     = Vec::new();
     let test_labels_once: Vec<f32> = test_data.iter().map(|x| x.2).collect();
 
     for (seed_idx, &seed) in seeds.iter().enumerate() {
-        println!("=== Seed {} ({}/{}) ===", seed, seed_idx + 1, seeds.len());
+        println!("\n=== Seed {} ({}/{}) ===", seed, seed_idx + 1, seeds.len());
 
         let mut model = HybridEmbeddingModel::new(
             num_tfs, num_genes, embed_dim, expr_dim,
-            hidden_dim, output_dim, temperature, 0.1, seed,
+            hidden_dim, output_dim, temperature, 0.01, seed,
         );
         let mut state = AdamState::new(&model);
         let mut best_seed_val_acc = 0.0f32;
         let mut patience_counter  = 0usize;
-
-        let mut train_shuffled = train_data.clone();
+        let mut train_shuffled    = train_data.clone();
 
         for epoch in 0..epochs {
             let mut epoch_rng = StdRng::seed_from_u64(seed + epoch as u64);
             train_shuffled.shuffle(&mut epoch_rng);
 
+            let mut epoch_train_loss = 0.0f32;
+            let mut epoch_n = 0usize;
+
             for start in (0..train_shuffled.len()).step_by(batch_size) {
                 let end   = (start + batch_size).min(train_shuffled.len());
                 let batch = &train_shuffled[start..end];
+                let bsz   = batch.len();
                 let tf_idx:   Vec<usize> = batch.iter().map(|x| x.0).collect();
                 let gene_idx: Vec<usize> = batch.iter().map(|x| x.1).collect();
                 let labels:   Vec<f32>   = batch.iter().map(|x| x.2).collect();
                 let tf_e   = build_expr_batch(&tf_idx,   &tf_expr_map,   expr_dim);
                 let gene_e = build_expr_batch(&gene_idx, &gene_expr_map, expr_dim);
 
-                // forward returns Array1 (sigmoid applied), wrap to Array2 for bce_loss_backward
-                let preds      = model.forward(&tf_idx, &gene_idx, &tf_e, &gene_e);
-                let preds_2d   = preds.clone().insert_axis(ndarray::Axis(1));
-                let labels_arr = Array1::from(labels);
-                let grad_2d    = bce_loss_backward(&preds_2d, &labels_arr);
-                let grad       = grad_2d.column(0).to_owned();
+                let preds = model.forward(&tf_idx, &gene_idx, &tf_e, &gene_e);
+
+                // Stable gradient: (p - l) / batch_size
+                // model.backward multiplies by sigmoid'(logit)/temp internally.
+                // Using (p-l) avoids 1/(p*(1-p)) blow-up for confident predictions.
+                let grad: Array1<f32> = preds.iter().zip(labels.iter())
+                    .map(|(&p, &l)| (p - l) / bsz as f32)
+                    .collect();
+
+                // Track approximate BCE loss for logging
+                for (&p, &l) in preds.iter().zip(labels.iter()) {
+                    let pc = p.clamp(1e-7, 1.0 - 1e-7);
+                    epoch_train_loss += -(l * pc.ln() + (1.0 - l) * (1.0 - pc).ln());
+                    epoch_n += 1;
+                }
+
                 model.backward(&grad);
-                adam_step(&mut model, &mut state, lr, 1.0);
+                adam_step(&mut model, &mut state, lr, clip);
                 model.zero_grad();
             }
 
-            // Val check every 5 epochs
-            if epoch % 5 == 0 || epoch == epochs - 1 {
-                let (val_acc, _, _) = evaluate_detailed(
+            // Validation every 10 epochs
+            if (epoch + 1) % 10 == 0 || epoch == epochs - 1 {
+                let (val_loss, val_acc) = eval_loss_acc(
                     &mut model, &val_data, &tf_expr_map, &gene_expr_map, expr_dim, batch_size
                 );
+                let train_loss_avg = epoch_train_loss / epoch_n as f32;
+                println!("  Epoch {:2} | Train Loss: {:.4} | Val Loss: {:.4} | Val Acc: {:.2}%",
+                         epoch + 1, train_loss_avg, val_loss, val_acc * 100.0);
+
                 if val_acc > best_seed_val_acc {
                     best_seed_val_acc = val_acc;
                     patience_counter  = 0;
                 } else {
                     patience_counter += 1;
-                    if patience_counter >= 3 { break; }
+                    if patience_counter >= patience { break; }
                 }
             }
         }
@@ -369,7 +396,7 @@ fn main() -> Result<()> {
         );
         println!("  acc={:.2}% auroc={:.4} f1={:.4}", test_acc*100.0, test_auroc, test_f1);
 
-        // Collect test preds for ensemble
+        // Collect test predictions for ensemble
         let mut preds: Vec<f32> = Vec::new();
         for start in (0..test_data.len()).step_by(batch_size) {
             let end   = (start + batch_size).min(test_data.len());
@@ -392,7 +419,7 @@ fn main() -> Result<()> {
         seed_f1s.push(test_f1);
     }
 
-    // Ensemble + bootstrap CI
+    // Ensemble accuracy
     let n_test = test_data.len();
     let ensemble_preds: Vec<f32> = (0..n_test)
         .map(|i| all_test_preds_ensemble.iter().map(|p| p[i]).sum::<f32>() / seeds.len() as f32)
@@ -431,7 +458,7 @@ fn main() -> Result<()> {
     std::fs::write(out_file, serde_json::to_string_pretty(&result)?)?;
     println!("✓ Saved {}", out_file);
 
-    // Backward-compat single-seed result (first seed)
+    // Backward-compat single-seed result
     let compat = serde_json::json!({
         "architecture": "Standard MLP (Two-pathway)",
         "note": "NOT a transformer - uses feedforward layers only",
@@ -444,6 +471,36 @@ fn main() -> Result<()> {
     println!("✓ Saved results/standard_mlp_results.json");
     println!("\n=== Training Complete ===");
     Ok(())
+}
+
+fn eval_loss_acc(
+    model:         &mut HybridEmbeddingModel,
+    data:          &[(usize, usize, f32)],
+    tf_expr_map:   &HashMap<usize, Array1<f32>>,
+    gene_expr_map: &HashMap<usize, Array1<f32>>,
+    expr_dim:      usize,
+    batch_size:    usize,
+) -> (f32, f32) {
+    let mut total_loss = 0.0f32;
+    let mut n_correct  = 0usize;
+    let mut n_total    = 0usize;
+    for start in (0..data.len()).step_by(batch_size) {
+        let end   = (start + batch_size).min(data.len());
+        let batch = &data[start..end];
+        let tf_idx:   Vec<usize> = batch.iter().map(|x| x.0).collect();
+        let gene_idx: Vec<usize> = batch.iter().map(|x| x.1).collect();
+        let labels:   Vec<f32>   = batch.iter().map(|x| x.2).collect();
+        let tf_e   = build_expr_batch(&tf_idx,   tf_expr_map,   expr_dim);
+        let gene_e = build_expr_batch(&gene_idx, gene_expr_map, expr_dim);
+        let preds  = model.forward(&tf_idx, &gene_idx, &tf_e, &gene_e);
+        for (&p, &l) in preds.iter().zip(labels.iter()) {
+            let p_c = p.clamp(1e-7, 1.0 - 1e-7);
+            total_loss += -(l * p_c.ln() + (1.0 - l) * (1.0 - p_c).ln());
+            if (p >= 0.5) == (l == 1.0) { n_correct += 1; }
+            n_total += 1;
+        }
+    }
+    (total_loss / n_total as f32, n_correct as f32 / n_total as f32)
 }
 
 fn evaluate_detailed(

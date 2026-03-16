@@ -1,0 +1,46 @@
+[
+  {
+    "bootstrap_ci_lower": 0.8061612041074694,
+    "bootstrap_ci_upper": 0.8236038824025883,
+    "ensemble_accuracy": 0.8347165584564209,
+    "mean_accuracy": 0.809002697467804,
+    "mean_auroc": 0.8096913576126099,
+    "mean_f1": 0.8072567224502564,
+    "model": "Two-Tower",
+    "neg_ratio": 1,
+    "std_accuracy": 0.005936991889029741
+  },
+  {
+    "bootstrap_ci_lower": 0.7439864959909973,
+    "bootstrap_ci_upper": 0.7626951751301168,
+    "ensemble_accuracy": 0.7591785192489624,
+    "mean_accuracy": 0.7402728796005249,
+    "mean_auroc": 0.7433511853218079,
+    "mean_f1": 0.6598295927047729,
+    "model": "Two-Tower",
+    "neg_ratio": 5,
+    "std_accuracy": 0.015428931452333927
+  },
+  {
+    "bootstrap_ci_lower": 0.8178365452243634,
+    "bootstrap_ci_upper": 0.8357012238008159,
+    "ensemble_accuracy": 0.8402025699615479,
+    "mean_accuracy": 0.8302715420722961,
+    "mean_auroc": 0.904042637348175,
+    "mean_f1": 0.831005597114563,
+    "model": "Cross-Encoder",
+    "neg_ratio": 1,
+    "std_accuracy": 0.004812865983694792
+  },
+  {
+    "bootstrap_ci_lower": 0.798002532001688,
+    "bootstrap_ci_upper": 0.8157265438176958,
+    "ensemble_accuracy": 0.8233225345611572,
+    "mean_accuracy": 0.8147137761116028,
+    "mean_auroc": 0.9149975299835205,
+    "mean_f1": 0.78250812292099,
+    "model": "Cross-Encoder",
+    "neg_ratio": 5,
+    "std_accuracy": 0.00742601603269577
+  }
+]
