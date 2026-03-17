@@ -94,6 +94,17 @@ impl LinearLayer {
     pub fn prune_outputs(&mut self, keep_indices: &[usize]) {
         let in_dim = self.weights.nrows();
         let k = keep_indices.len();
+        debug_assert!(
+            keep_indices.iter().all(|&j| j < self.weights.ncols()),
+            "prune_outputs: keep index out of bounds"
+        );
+        debug_assert!(
+            {
+                let mut seen = std::collections::HashSet::new();
+                keep_indices.iter().all(|&j| seen.insert(j))
+            },
+            "prune_outputs: keep_indices contains duplicate indices"
+        );
         let mut new_weights = ndarray::Array2::zeros((in_dim, k));
         let mut new_bias = ndarray::Array1::zeros(k);
         for (new_j, &old_j) in keep_indices.iter().enumerate() {
@@ -235,5 +246,6 @@ mod tests {
         assert_eq!(layer.weights[[0, 1]], 3.0); // col 2, row 0
         assert!((layer.bias[0] - 0.1).abs() < 1e-6);
         assert!((layer.bias[1] - 0.3).abs() < 1e-6);
+        assert!(layer.input_cache.is_none(), "input_cache should be cleared after pruning");
     }
 }
