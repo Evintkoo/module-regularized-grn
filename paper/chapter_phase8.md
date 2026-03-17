@@ -147,15 +147,114 @@ the parameter-matching argument in its favor is weaker than it appears.
 
 ### 4.3.1 Dataset and Prior Knowledge
 
+Gene expression data were obtained from a human brain single-nucleus RNA-seq dataset in
+H5AD format. Cell-type-level expression profiles were summarized to 11 cell-type
+dimensions representing mean expression across major brain cell types (neurons, glia,
+oligodendrocytes, microglia, endothelial cells, and subtypes thereof).
+
+Prior regulatory knowledge was sourced from merged DoRothEA [@garcia2019] and TRRUST
+[@han2018] databases, yielding approximately 29,000 TF–gene pairs as positive (regulatory)
+examples. An equal number of negative (non-regulatory) examples were sampled uniformly
+from the space of TF–gene pairs not present in the prior databases, producing a balanced
+dataset of approximately 39,000 total examples. The dataset was split into training
+(70%), validation (15%), and test (15%) sets using a fixed random seed (42) applied once
+before any model training, ensuring that all model comparisons use identical data splits.
+
 ### 4.3.2 Model Architectures
+
+**Two-Tower MLP.** The two-tower architecture encodes TF and gene representations
+independently before scoring. Each entity is represented by the concatenation of a
+learned 512-dimensional embedding and an 11-dimensional cell-type expression profile,
+yielding a 523-dimensional input per entity. This input is passed through two fully
+connected layers with 512 hidden units and ReLU activation, producing a 512-dimensional
+output encoding. Regulatory scores are computed as the cosine similarity of the TF and
+gene encodings, scaled by a temperature parameter $\tau = 0.05$ and passed through a
+sigmoid function to produce probabilities. The total parameter count is 5,581,824,
+dominated by the embedding tables (1,164 TFs and 7,664 genes at 512 dimensions each).
+
+**Cross-Encoder MLP.** The cross-encoder receives TF and gene features jointly. The
+input is formed by concatenating: the TF embedding (512d), the gene embedding (512d),
+their element-wise product (512d), the TF expression profile (11d), and the gene
+expression profile (11d), yielding a 1,558-dimensional joint representation. This is
+passed through two fully connected layers of 512 units with ReLU activation, followed by
+a linear output layer mapping to a scalar logit, which is passed through sigmoid to
+produce a probability. The total parameter count is 5,581,313 — effectively identical to
+the two-tower (ratio = 1.000), ensuring a parameter-matched comparison.
+
+Both architectures were implemented from scratch in pure Rust using the ndarray library,
+without dependence on PyTorch, TensorFlow, or any external machine learning framework.
+Figure 4.1 illustrates the two architectures side by side.
+
+![Architecture comparison: Two-Tower MLP (left) versus Cross-Encoder MLP (right). Both architectures use identical embedding tables and share comparable parameter counts (5.58M). The key difference is that the cross-encoder processes TF and gene features jointly, including an explicit element-wise interaction term, while the two-tower scores interactions via cosine similarity of independently computed encodings.](figures/fig4_1_architecture.svg)
 
 ### 4.3.3 Training Protocol
 
+All models were trained with the Adam optimizer [@kingma2014] with learning rate
+$\eta = 0.001$, $\beta_1 = 0.9$, $\beta_2 = 0.999$, and gradient clipping at a global
+norm of 5.0. The batch size was 256 examples. **Note on learning rate:** Phase 8
+experiments use $\eta = 0.001$, which differs from the $\eta = 0.005$ used in Phases
+2–7 of this dissertation. The lower learning rate was adopted for Phase 8 to match the
+cross-encoder's training setup and ensure a fair architectural comparison; results from
+Phases 2–7 (single-model accuracy 80.14%, ensemble 83.06%) are therefore not directly
+comparable to the Phase 8 two-tower results reported in this chapter. Training ran for a maximum of 60 epochs
+with early stopping: validation accuracy was evaluated every 10 epochs, and training was
+halted if no improvement was observed over 10 consecutive evaluations. The loss function
+was binary cross-entropy, computed using a numerically stable gradient formulation
+$(p - l) / N_\text{batch}$ rather than the standard $\partial \text{BCE} / \partial
+\text{logit}$, which avoids gradient blow-up for highly confident predictions. All
+weights were initialized with normal distribution $\mathcal{N}(0, 0.01)$.
+
 ### 4.3.4 Evaluation
+
+All models were evaluated on the held-out test set (7,109 examples) using three metrics:
+accuracy (fraction correctly classified at threshold 0.5), area under the receiver
+operating characteristic curve (AUROC), and macro F1 score. Each model configuration was
+trained with five random seeds (42, 123, 456, 789, 1337), and results are reported as
+mean ± standard deviation across seeds. Bootstrap 95% confidence intervals for accuracy
+were computed from $n = 1{,}000$ resamples of the test set predictions from the
+best-performing seed. All metrics are reported to four decimal places for consistency.
+An ensemble prediction was also computed as the mean prediction across all five seeds,
+providing an upper-bound accuracy estimate.
 
 ### 4.3.5 Negative Sampling
 
+Two negative sampling regimes were evaluated:
+
+- **Balanced (1:1):** equal numbers of positive and negative examples, matching the
+  typical assumption in benchmark evaluations of GRN inference methods.
+- **Realistic (5:1):** five negative examples per positive example, reflecting the
+  approximate ratio of non-edges to edges in curated regulatory databases relative to
+  the space of possible TF–gene pairs.
+
+The 5:1 regime provides a more ecologically valid test of model robustness, since deployed
+GRN inference methods must operate on data where regulatory interactions are rare.
+
 ### 4.3.6 Neuron Pruning Protocol
+
+To assess representational redundancy in the trained two-tower model, a structured
+neuron pruning experiment was conducted on a single model instance (seed = 42). Neuron
+importance was scored for each of the 512 output neurons in each tower's first fully
+connected layer (fc1) as:
+
+$$\text{importance}(j) = \alpha \cdot \text{activation\_freq}(j) + (1 - \alpha) \cdot \text{weight\_magnitude}(j)$$
+
+where $\alpha = 0.5$ (equal weighting), $\text{activation\_freq}(j)$ is the fraction of
+training examples for which neuron $j$'s post-ReLU activation exceeds zero, and
+$\text{weight\_magnitude}(j)$ is the mean of the normalized L2 norms of column $j$ of
+the fc1 weight matrix and row $j$ of the fc2 weight matrix. Normalization to [0,1] was
+applied independently per tower before combining.
+
+Pruning was applied at 13 sparsity levels: $\{0\%, 5\%, 10\%, 15\%, 20\%, 25\%, 30\%,
+40\%, 50\%, 60\%, 70\%, 80\%, 90\%\}$. At each level, the lowest-importance neurons were
+removed by deleting the corresponding columns from fc1's weight matrix and rows from
+fc2's weight matrix. Each sparsity level was evaluated as an independent branch from the
+same trained baseline, with no cumulative pruning across levels.
+
+Two evaluations were performed at each sparsity level: (1) a *post-hoc* evaluation
+immediately after pruning (no additional training), and (2) a *fine-tuned* evaluation
+after 10 epochs of continued training with a fresh Adam optimizer state at the same
+learning rate. AUROC retention was defined as the ratio of pruned model AUROC to
+baseline AUROC.
 
 ## 4.4 Hypothesis 1: Monolithic Cross-Encoders Achieve Superior Discriminative Power Under Balanced Training
 
