@@ -459,6 +459,131 @@ Hypothesis 3 is supported.
 
 ## 4.7 Discussion
 
+The three hypotheses investigated in this chapter form a coherent account of the
+relationship between architectural inductive bias and representational efficiency in
+neural GRN inference. The cross-encoder's advantage over the two-tower (H1) is robust
+to realistic class imbalance where the two-tower fails (H2), and the pruning analysis
+explains *why* the two-tower is limited: its nominal parameter count does not reflect
+its effective capacity (H3).
+
+**Unified interpretation.** The factorized two-tower architecture imposes a strong
+inductive bias that is both its strength and its weakness. By separating TF and gene
+encoding, the two-tower enables efficient inference at scale: given pre-computed TF and
+gene embeddings, all $M \times N$ TF–gene regulatory scores can be computed as a matrix
+product in $O(Md + Nd)$ time rather than the $O(MNd)$ required by per-pair cross-encoder
+inference. This scalability property is genuine and relevant for genome-scale GRN
+inference over tens of thousands of gene pairs. However, the cosine-similarity scoring
+mechanism that enables this efficiency also prevents the model from learning the
+joint features that drive regulatory specificity, leading to the AUROC gap observed in
+H1 and the sensitivity to class imbalance in H2.
+
+The neuron pruning results (H3) reinforce this picture: the two-tower's 512-dimensional
+hidden space is far larger than necessary, suggesting that the cosine similarity
+objective cannot leverage the representational capacity that is nominally available.
+This provides a mechanistic account of the H1 AUROC gap that goes beyond simply noting
+that the cross-encoder has a more expressive scoring function. The two-tower is not just
+less expressive in principle — it actively fails to use the capacity it has.
+
+**Practical recommendations.** For practitioners choosing between two-tower and
+cross-encoder architectures for GRN inference:
+
+- If AUROC and discriminative performance are the primary criteria, and the evaluation
+  dataset has a realistic negative sampling ratio, the cross-encoder is the clear choice.
+- If scalability is paramount — for example, in genome-scale applications requiring
+  $10^6$–$10^8$ pair evaluations — the two-tower may be preferred, but practitioners
+  should be aware of the 6–10 AUROC point performance cost relative to a cross-encoder
+  of comparable size, and should consider using only the compressed (pruned) two-tower,
+  which achieves the same performance at 83% of the original parameter count.
+
+**Limitations.** Several limitations constrain the generalizability of these findings.
+This study uses a single biological dataset (human brain single-nucleus RNA-seq); whether
+the cross-encoder advantage persists across other tissues, organisms, or expression
+modalities is not established. Training was performed on CPU hardware, which constrains
+the scale of architectures that could be practically evaluated; larger models with wider
+hidden layers or additional depth might close the AUROC gap. The two-tower architecture
+tested here uses cosine similarity with temperature scaling; alternative scoring
+functions such as bilinear similarity or attention-based cross-tower interaction might
+recover some of the expressiveness lost to the cosine similarity bottleneck. The pruning
+experiment was conducted at a single seed; multi-seed pruning was not evaluated, and the
+non-monotonic fine-tuning behavior suggests that the 10-epoch fine-tune budget is
+insufficient to fully characterize the relationship between sparsity and performance.
+Finally, the pruning analysis characterizes only the fc1 output neurons; fc2 output
+neurons and the embedding tables were not pruned, and their redundancy is unknown.
+
+**Future directions.** Three extensions are directly motivated by these results. First,
+an InfoNCE-trained two-tower, where the contrastive objective explicitly attracts
+positive TF–gene pairs and repels negatives within a batch, may be more robust to the
+marginal distribution sensitivity observed in H2 while retaining the two-tower's
+inference efficiency. Second, Deep Mutual Learning between two decoders may address the
+redundancy problem (H3) by introducing a diversity pressure through the agreement
+regularization term. Third, a cross-attention two-tower — where the gene encoder attends
+over the TF encoding before producing a final representation — would bridge the two
+architectures, enabling per-pair interaction features while maintaining the factorized
+structure required for efficient inference.
+
 ## 4.8 Conclusion
 
+This chapter has presented a systematic experimental comparison of two-tower and
+cross-encoder neural architectures for TF–gene regulatory edge prediction from single-cell
+RNA-seq data. Under parameter-matched, data-matched conditions, the cross-encoder achieves
+9.4 higher AUROC points than the two-tower under balanced training (0.9040 vs 0.8097),
+is robust to 5:1 class imbalance where the two-tower degrades by 6.6 AUROC points, and
+demonstrates substantially more stable training (2.6× lower standard deviation at 5:1).
+A neuron pruning analysis further shows that the two-tower's 512-dimensional hidden space
+is nearly entirely redundant: post-hoc AUROC never falls below the 95% retention threshold
+at any tested sparsity level, and 51 neurons per tower (10% of the original 512) suffice
+to match baseline performance with no additional training.
+
+Together, these results indicate that the cross-encoder is the more appropriate choice
+for GRN inference tasks where discriminative accuracy is paramount, while the two-tower
+offers a scalable inference-efficient alternative whose performance can be maintained at
+substantially reduced model size through structured pruning. The mechanistic link between
+H1 and H3 — that the two-tower's AUROC deficit reflects wasted capacity due to cosine
+similarity's geometric constraints — provides a principled foundation for future work on
+architectures that combine the efficiency of factorized encoding with the expressiveness
+of joint interaction features.
+
 ## 4.9 References
+
+Aibar, S., González-Blas, C. B., Moerman, T., Imrichová, H., Hulselmans, G., Rambow, F.,
+... & Aerts, S. (2017). SCENIC: single-cell regulatory network inference and clustering.
+*Nature Methods*, 14(11), 1083–1086.
+
+Bromley, J., Guyon, I., LeCun, Y., Säckinger, E., & Shah, R. (1993). Signature
+verification using a "Siamese" time delay neural network. *Advances in Neural Information
+Processing Systems*, 6.
+
+Frankle, J., & Carlin, M. (2019). The lottery ticket hypothesis: Finding sparse,
+trainable neural networks. *International Conference on Learning Representations (ICLR)*.
+
+García-Alonso, L., Holland, C. H., Ibrahim, M. M., Turei, D., & Saez-Rodriguez, J.
+(2019). Benchmark and integration of resources for the estimation of human transcription
+factor activities. *Genome Research*, 29(8), 1363–1375.
+
+Han, S., Pool, J., Tran, J., & Dally, W. (2015). Learning both weights and connections
+for efficient neural networks. *Advances in Neural Information Processing Systems*, 28.
+
+Han, H., Cho, J. W., Lee, S., Yun, A., Kim, H., Bae, D., ... & Lee, I. (2018). TRRUST
+v2: an expanded reference database of human and mouse transcriptional regulatory
+interactions. *Nucleic Acids Research*, 46(D1), D380–D386.
+
+Huang, P. S., He, X., Gao, J., Deng, L., Acero, A., & Heck, L. (2013). Learning deep
+structured semantic models for web search using clickthrough data. *Proceedings of the
+22nd ACM International Conference on Information & Knowledge Management (CIKM)*, 2333–2338.
+
+Huynh-Thu, V. A., Irrthum, A., Wehenkel, L., & Geurts, P. (2010). Inferring regulatory
+networks from expression data using tree-based methods. *PLOS ONE*, 5(9), e12776.
+
+Kingma, D. P., & Ba, J. (2015). Adam: A method for stochastic optimization.
+*International Conference on Learning Representations (ICLR)*.
+
+Nogueira, R., & Cho, K. (2019). Passage re-ranking with BERT. *arXiv preprint
+arXiv:1901.04085*.
+
+Humeau, S., Shuster, K., Lachaux, M.-A., & Weston, J. (2020). Poly-encoders:
+Architectures and pre-training strategies for fast and accurate multi-sentence scoring.
+*International Conference on Learning Representations (ICLR)*.
+
+Khattab, O., & Zaharia, M. (2020). ColBERT: Efficient and effective passage search via
+contextualized late interaction over BERT. *Proceedings of the 43rd International ACM
+SIGIR Conference on Research and Development in Information Retrieval*, 39–48.
