@@ -1108,7 +1108,7 @@ require no additional training, are monotonically stable or improving throughout
 Figures 4.3 and 4.4 visualize the sparsity-retention trade-off and the compression-AUROC
 relationship.
 
-![Sparsity vs AUROC retention for post-hoc (blue) and fine-tuned (red) evaluations. The horizontal dashed line marks the baseline (1.000); the grey dashed line marks the 95% retention threshold. Post-hoc retention never falls below 0.9996.](figures/fig4_3_pruning_curve.svg)
+![Sparsity vs AUROC retention for post-hoc (blue) and fine-tuned (red) evaluations. The solid black line marks the baseline (1.000); the solid red line marks the 95% retention threshold. Post-hoc retention never falls below 0.9996.](figures/fig4_3_pruning_curve.svg)
 
 ![Compression ratio vs post-hoc AUROC. Each point represents one sparsity level; higher compression (lower ratio) corresponds to higher sparsity. The horizontal reference line marks the baseline AUROC (0.8015). Points above the line represent post-hoc improvements over the unpruned model.](figures/fig4_4_compression_scatter.svg)
 
