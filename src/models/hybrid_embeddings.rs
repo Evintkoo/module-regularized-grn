@@ -5,6 +5,7 @@ use ndarray::{Array1, Array2, Axis};
 use std::f32;
 
 /// Hybrid embedding + expression model
+#[derive(Clone)]
 pub struct HybridEmbeddingModel {
     // TF encoder
     pub tf_embed: Array2<f32>,
@@ -304,21 +305,32 @@ impl HybridEmbeddingModel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_hybrid_forward() {
         let mut model = HybridEmbeddingModel::new(
             100, 500, 64, 2000, 128, 64, 0.07, 0.01, 42
         );
-        
+
         let tf_indices = vec![0, 1, 2];
         let gene_indices = vec![10, 20, 30];
         let tf_expr = Array2::zeros((3, 2000));
         let gene_expr = Array2::zeros((3, 2000));
-        
+
         let scores = model.forward(&tf_indices, &gene_indices, &tf_expr, &gene_expr);
-        
+
         assert_eq!(scores.len(), 3);
         assert!(scores.iter().all(|&x| x >= 0.0 && x <= 1.0));
+    }
+
+    #[test]
+    fn test_model_clone() {
+        let model = HybridEmbeddingModel::new(
+            10, 20, 8, 16, 16, 8, 0.05, 0.01, 42
+        );
+        let cloned = model.clone();
+        // Embeddings should be equal but independent
+        assert_eq!(model.tf_embed.dim(), cloned.tf_embed.dim());
+        assert_eq!(model.tf_fc1.weights.dim(), cloned.tf_fc1.weights.dim());
     }
 }
