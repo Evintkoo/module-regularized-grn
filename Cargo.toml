@@ -55,6 +55,14 @@ path = "src/bin/train_cross_encoder.rs"
 name = "compare_models"
 path = "src/bin/compare_models.rs"
 
+[[bin]]
+name = "neuron_pruning"
+path = "src/bin/neuron_pruning.rs"
+
+[[bin]]
+name = "generate_chapter_figures"
+path = "src/bin/generate_chapter_figures.rs"
+
 [dependencies]
 ndarray = { version = "0.15", features = ["rayon"] }
 ndarray-rand = "0.14"
