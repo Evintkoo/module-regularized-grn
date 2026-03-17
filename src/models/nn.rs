@@ -87,6 +87,25 @@ impl LinearLayer {
         self.grad_weights.fill(0.0);
         self.grad_bias.fill(0.0);
     }
+
+    /// Remove output neurons, keeping only those at `keep_indices`.
+    /// Resizes weights from (in_dim, out_dim) to (in_dim, keep_count),
+    /// bias from (out_dim,) to (keep_count,). Resets grad arrays.
+    pub fn prune_outputs(&mut self, keep_indices: &[usize]) {
+        let in_dim = self.weights.nrows();
+        let k = keep_indices.len();
+        let mut new_weights = ndarray::Array2::zeros((in_dim, k));
+        let mut new_bias = ndarray::Array1::zeros(k);
+        for (new_j, &old_j) in keep_indices.iter().enumerate() {
+            new_weights.column_mut(new_j).assign(&self.weights.column(old_j));
+            new_bias[new_j] = self.bias[old_j];
+        }
+        self.weights = new_weights;
+        self.bias = new_bias;
+        self.grad_weights = ndarray::Array2::zeros((in_dim, k));
+        self.grad_bias = ndarray::Array1::zeros(k);
+        self.input_cache = None;
+    }
 }
 
 /// ReLU activation
@@ -188,5 +207,33 @@ mod tests {
         let y = relu(&x);
         assert_eq!(y[[0, 0]], 0.0);
         assert_eq!(y[[0, 1]], 2.0);
+    }
+
+    #[test]
+    fn test_prune_outputs() {
+        // layer: in=4, out=3
+        let mut layer = LinearLayer::new(4, 3, 42);
+        // Override weights/bias with known values for testing
+        layer.weights = ndarray::Array2::from_shape_vec((4, 3), vec![
+            1.0, 2.0, 3.0,
+            4.0, 5.0, 6.0,
+            7.0, 8.0, 9.0,
+            10.0, 11.0, 12.0,
+        ]).unwrap();
+        layer.bias = ndarray::Array1::from_vec(vec![0.1, 0.2, 0.3]);
+
+        // Keep output neurons 0 and 2 (drop neuron 1)
+        layer.prune_outputs(&[0, 2]);
+
+        assert_eq!(layer.weights.dim(), (4, 2));
+        assert_eq!(layer.bias.len(), 2);
+        assert_eq!(layer.grad_weights.dim(), (4, 2));
+        assert_eq!(layer.grad_bias.len(), 2);
+
+        // Check correct columns were kept
+        assert_eq!(layer.weights[[0, 0]], 1.0); // col 0, row 0
+        assert_eq!(layer.weights[[0, 1]], 3.0); // col 2, row 0
+        assert!((layer.bias[0] - 0.1).abs() < 1e-6);
+        assert!((layer.bias[1] - 0.3).abs() < 1e-6);
     }
 }
