@@ -117,6 +117,33 @@ impl LinearLayer {
         self.grad_bias = ndarray::Array1::zeros(k);
         self.input_cache = None;
     }
+
+    /// Remove input neurons, keeping only those at `keep_indices`.
+    /// Resizes weights from (in_dim, out_dim) to (keep_count, out_dim).
+    /// Bias shape (out_dim,) is unchanged — it depends on output, not input.
+    pub fn prune_inputs(&mut self, keep_indices: &[usize]) {
+        debug_assert!(
+            keep_indices.iter().all(|&i| i < self.weights.nrows()),
+            "prune_inputs: keep index out of bounds"
+        );
+        debug_assert!(
+            {
+                let mut seen = std::collections::HashSet::new();
+                keep_indices.iter().all(|&i| seen.insert(i))
+            },
+            "prune_inputs: keep_indices contains duplicate indices"
+        );
+        let out_dim = self.weights.ncols();
+        let k = keep_indices.len();
+        let mut new_weights = ndarray::Array2::zeros((k, out_dim));
+        for (new_i, &old_i) in keep_indices.iter().enumerate() {
+            new_weights.row_mut(new_i).assign(&self.weights.row(old_i));
+        }
+        self.weights = new_weights;
+        self.grad_weights = ndarray::Array2::zeros((k, out_dim));
+        self.input_cache = None;
+        // bias is untouched — shape is (out_dim,) which depends only on outputs
+    }
 }
 
 /// ReLU activation
@@ -246,6 +273,35 @@ mod tests {
         assert_eq!(layer.weights[[0, 1]], 3.0); // col 2, row 0
         assert!((layer.bias[0] - 0.1).abs() < 1e-6);
         assert!((layer.bias[1] - 0.3).abs() < 1e-6);
+        assert!(layer.input_cache.is_none(), "input_cache should be cleared after pruning");
+    }
+
+    #[test]
+    fn test_prune_inputs() {
+        // layer: in=3, out=2
+        let mut layer = LinearLayer::new(3, 2, 42);
+        layer.weights = ndarray::Array2::from_shape_vec((3, 2), vec![
+            1.0, 2.0,
+            3.0, 4.0,
+            5.0, 6.0,
+        ]).unwrap();
+        layer.bias = ndarray::Array1::from_vec(vec![0.5, 0.6]);
+
+        // Keep input neurons 0 and 2 (drop neuron 1)
+        layer.prune_inputs(&[0, 2]);
+
+        assert_eq!(layer.weights.dim(), (2, 2));
+        assert_eq!(layer.bias.len(), 2); // bias unchanged
+        assert_eq!(layer.grad_weights.dim(), (2, 2));
+
+        // Check correct rows were kept
+        assert_eq!(layer.weights[[0, 0]], 1.0); // row 0, col 0
+        assert_eq!(layer.weights[[0, 1]], 2.0); // row 0, col 1
+        assert_eq!(layer.weights[[1, 0]], 5.0); // row 2, col 0
+        assert_eq!(layer.weights[[1, 1]], 6.0); // row 2, col 1
+        // bias unchanged
+        assert!((layer.bias[0] - 0.5).abs() < 1e-6);
+        // input_cache should be cleared
         assert!(layer.input_cache.is_none(), "input_cache should be cleared after pruning");
     }
 }
