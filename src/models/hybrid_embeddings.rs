@@ -2,7 +2,40 @@
 /// Target: 70%+ accuracy by combining structure and biology
 use crate::models::nn::{LinearLayer, relu, relu_backward};
 use ndarray::{Array1, Array2, Axis};
+use std::collections::HashMap;
 use std::f32;
+
+/// Raw activation and weight statistics collected during profiling pass.
+/// All counts are per neuron (index = fc1 output neuron j, 0..hidden_dim-1).
+pub struct NeuronStats {
+    pub tf_fc1_activation_counts:   Vec<u32>,  // # examples where TF fc1 neuron j > 0
+    pub gene_fc1_activation_counts: Vec<u32>,  // # examples where Gene fc1 neuron j > 0
+    pub total_examples: usize,                 // total training examples profiled
+    pub tf_fc1_col_norms:   Vec<f32>,  // ||tf_fc1.weights.column(j)||₂
+    pub tf_fc2_row_norms:   Vec<f32>,  // ||tf_fc2.weights.row(j)||₂
+    pub gene_fc1_col_norms: Vec<f32>,
+    pub gene_fc2_row_norms: Vec<f32>,
+}
+
+/// Final combined importance scores per tower's fc1 neurons (0..hidden_dim-1).
+pub struct LayerScores {
+    pub tf_fc1:   Vec<f32>,
+    pub gene_fc1: Vec<f32>,
+}
+
+fn build_expr_batch_for_profiling(
+    indices:  &[usize],
+    expr_map: &HashMap<usize, Array1<f32>>,
+    expr_dim: usize,
+) -> Array2<f32> {
+    let mut batch = Array2::zeros((indices.len(), expr_dim));
+    for (i, &idx) in indices.iter().enumerate() {
+        if let Some(expr) = expr_map.get(&idx) {
+            batch.row_mut(i).assign(expr);
+        }
+    }
+    batch
+}
 
 /// Hybrid embedding + expression model
 #[derive(Clone)]
@@ -300,6 +333,69 @@ impl HybridEmbeddingModel {
         // Placeholder - would need actual gene lookup
         0.5
     }
+
+    /// Inference-only forward pass over all training data.
+    /// Accumulates per-neuron activation counts and weight norms.
+    /// Does NOT call backward() or accumulate any gradients.
+    pub fn profile_activations(
+        &mut self,
+        data:          &[(usize, usize, f32)],
+        tf_expr_map:   &HashMap<usize, Array1<f32>>,
+        gene_expr_map: &HashMap<usize, Array1<f32>>,
+        expr_dim:      usize,
+        batch_size:    usize,
+    ) -> NeuronStats {
+        let hidden_dim = self.tf_fc1.bias.len();
+
+        // Compute weight norms once — O(hidden_dim * in_dim), not per-batch
+        let l2 = |v: ndarray::ArrayView1<f32>| -> f32 {
+            v.iter().map(|&x| x * x).sum::<f32>().sqrt()
+        };
+        let tf_fc1_col_norms:   Vec<f32> = (0..hidden_dim).map(|j| l2(self.tf_fc1.weights.column(j))).collect();
+        let tf_fc2_row_norms:   Vec<f32> = (0..hidden_dim).map(|j| l2(self.tf_fc2.weights.row(j))).collect();
+        let gene_fc1_col_norms: Vec<f32> = (0..hidden_dim).map(|j| l2(self.gene_fc1.weights.column(j))).collect();
+        let gene_fc2_row_norms: Vec<f32> = (0..hidden_dim).map(|j| l2(self.gene_fc2.weights.row(j))).collect();
+
+        let mut tf_counts   = vec![0u32; hidden_dim];
+        let mut gene_counts = vec![0u32; hidden_dim];
+        let mut total_examples = 0usize;
+
+        for start in (0..data.len()).step_by(batch_size) {
+            let end   = (start + batch_size).min(data.len());
+            let batch = &data[start..end];
+            let bsz   = batch.len();
+
+            let tf_idx:   Vec<usize> = batch.iter().map(|x| x.0).collect();
+            let gene_idx: Vec<usize> = batch.iter().map(|x| x.1).collect();
+            let tf_e   = build_expr_batch_for_profiling(&tf_idx,   tf_expr_map,   expr_dim);
+            let gene_e = build_expr_batch_for_profiling(&gene_idx, gene_expr_map, expr_dim);
+
+            // forward() writes post-ReLU activations to self.tf_h1 and self.gene_h1
+            self.forward(&tf_idx, &gene_idx, &tf_e, &gene_e);
+            // No backward() call — this is inference only
+
+            let tf_h1   = self.tf_h1.as_ref().unwrap();
+            let gene_h1 = self.gene_h1.as_ref().unwrap();
+
+            for i in 0..bsz {
+                for j in 0..hidden_dim {
+                    if tf_h1[[i, j]]   > 0.0 { tf_counts[j]   += 1; }
+                    if gene_h1[[i, j]] > 0.0 { gene_counts[j] += 1; }
+                }
+            }
+            total_examples += bsz;
+        }
+
+        NeuronStats {
+            tf_fc1_activation_counts:   tf_counts,
+            gene_fc1_activation_counts: gene_counts,
+            total_examples,
+            tf_fc1_col_norms,
+            tf_fc2_row_norms,
+            gene_fc1_col_norms,
+            gene_fc2_row_norms,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -332,5 +428,46 @@ mod tests {
         // Embeddings should be equal but independent
         assert_eq!(model.tf_embed.dim(), cloned.tf_embed.dim());
         assert_eq!(model.tf_fc1.weights.dim(), cloned.tf_fc1.weights.dim());
+    }
+
+    #[test]
+    fn test_profile_activations() {
+        use std::collections::HashMap;
+        use ndarray::Array1;
+
+        let mut model = HybridEmbeddingModel::new(
+            5, 10, 4, 8, 8, 4, 0.05, 0.01, 42
+        );
+        let hidden_dim = 8;
+
+        // Build tiny fake expr maps
+        let mut tf_expr: HashMap<usize, Array1<f32>> = HashMap::new();
+        let mut gene_expr: HashMap<usize, Array1<f32>> = HashMap::new();
+        for i in 0..5  { tf_expr.insert(i,   Array1::zeros(8)); }
+        for i in 0..10 { gene_expr.insert(i,  Array1::zeros(8)); }
+
+        // 4 training examples
+        let data: Vec<(usize, usize, f32)> = vec![
+            (0, 0, 1.0), (1, 1, 0.0), (2, 2, 1.0), (3, 3, 0.0),
+        ];
+
+        let stats = model.profile_activations(&data, &tf_expr, &gene_expr, 8, 4);
+
+        assert_eq!(stats.tf_fc1_activation_counts.len(), hidden_dim);
+        assert_eq!(stats.gene_fc1_activation_counts.len(), hidden_dim);
+        assert_eq!(stats.total_examples, 4);
+        assert_eq!(stats.tf_fc1_col_norms.len(), hidden_dim);
+        assert_eq!(stats.tf_fc2_row_norms.len(), hidden_dim);
+        assert_eq!(stats.gene_fc1_col_norms.len(), hidden_dim);
+        assert_eq!(stats.gene_fc2_row_norms.len(), hidden_dim);
+
+        // activation counts must be in [0, total_examples]
+        for &c in &stats.tf_fc1_activation_counts {
+            assert!(c as usize <= stats.total_examples);
+        }
+        // weight norms must be non-negative
+        for &n in &stats.tf_fc1_col_norms {
+            assert!(n >= 0.0);
+        }
     }
 }
