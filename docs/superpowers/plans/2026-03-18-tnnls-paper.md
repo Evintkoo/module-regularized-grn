@@ -256,7 +256,7 @@ encoding.
 
 The element-wise product $\mathbf{a} \odot \mathbf{b}$ of two embeddings is
 a standard feature engineering technique that provides a direct path for
-learning which embedding dimensions co-activate for relevant pairs~\cite{chen2016}.
+learning which embedding dimensions co-activate for relevant pairs~\cite{rendle2010}.
 
 \subsection{Structured Pruning and Representational Redundancy}
 
