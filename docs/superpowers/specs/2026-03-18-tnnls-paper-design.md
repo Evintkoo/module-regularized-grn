@@ -158,7 +158,11 @@ Do NOT reuse the dissertation conclusion verbatim — it is too long and recaps 
 
 The `chen2016` entry is cited in §4.2.3 for the element-wise product feature engineering technique. **Keep this citation** in Section II-C and retain `chen2016` in the bibliography (13 references total). BibTeX will automatically exclude any entries not cited in the text.
 
-Bibliography declaration: `\bibliography{chapter_phase8}`
+Bibliography declarations:
+```latex
+\bibliographystyle{IEEEtran}
+\bibliography{chapter_phase8}
+```
 
 ---
 
