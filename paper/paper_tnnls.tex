@@ -398,7 +398,7 @@ Table~\ref{tab:pruning} presents the post-hoc and fine-tuned AUROC retention acr
 
 The post-hoc AUROC retention never falls below the 95\% retention threshold at any tested sparsity level. The maximum deviation below baseline is 0.04\% (at 10\% sparsity, retention = 0.9996). Notably, post-hoc retention \emph{increases} above 1.0 at sparsity levels of 25\% and above, reaching a maximum of 1.0104 at 80\% sparsity. This counterintuitive result indicates that removing low-importance neurons can \emph{improve} AUROC by reducing noise in the representation, a phenomenon consistent with overfitting in the original model.
 
-At 90\% sparsity, 51 neurons per tower are retained. The post-hoc AUROC is 0.8037 (retention 1.003), matching the baseline within 0.02 AUROC points. After 10 epochs of fine-tuning at 90\% sparsity, AUROC rises to 0.8214 (retention 1.0248) --- the highest fine-tuned AUROC observed across all sparsity levels.
+At 90\% sparsity, 51 neurons per tower are retained. The post-hoc AUROC is 0.8037 (retention 1.0027), matching the baseline within 0.02 AUROC points. After 10 epochs of fine-tuning at 90\% sparsity, AUROC rises to 0.8214 (retention 1.0248) --- the highest fine-tuned AUROC observed across all sparsity levels.
 
 Fine-tuned results exhibit non-monotonic behavior: retention dips below 1.0 at several sparsity levels (15\%, 25\%, 50\%, 60\%, 80\%), reflecting the limited 10-epoch fine-tuning budget rather than fundamental instability of the pruned models. Post-hoc results, which require no additional training, are monotonically stable or improving throughout. Figs.~\ref{fig:pruning} and~\ref{fig:scatter} visualize the sparsity-retention trade-off and the compression-AUROC relationship.
 
@@ -417,7 +417,7 @@ This finding connects causally to C1. If the two-tower cannot exploit its full 5
     Fine-tuned: 10 further epochs with fresh Adam state. Baseline AUROC = 0.8015.}
   \label{tab:pruning}
   \centering
-  \begin{tabular}{lccccccc}
+  \begin{tabular}{lcccccc}
     \hline
     Sparsity & Neurons Kept & Comp.\ Ratio & Post-hoc AUROC & Post-hoc Ret. & Fine-tuned AUROC & Fine-tuned Ret. \\
     \hline
