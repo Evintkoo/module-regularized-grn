@@ -280,9 +280,10 @@ neuron pruning experiment was conducted on a single model instance (seed = 42). 
 importance was scored for each of the 512 output neurons in each tower's first fully
 connected layer (fc1) as:
 
-\begin{equation}
-  \text{importance}(j) = \alpha \cdot \text{activation\_freq}(j) + (1 - \alpha) \cdot \text{weight\_magnitude}(j)
-\end{equation}
+\begin{align}
+  \text{importance}(j) &= \alpha \cdot \text{activation\_freq}(j) \nonumber \\
+                       &\quad + (1 - \alpha) \cdot \text{weight\_magnitude}(j)
+\end{align}
 
 where $\alpha = 0.5$ (equal weighting), $\text{activation\_freq}(j)$ is the fraction of
 training examples for which neuron $j$'s post-ReLU activation exceeds zero, and
@@ -290,8 +291,8 @@ $\text{weight\_magnitude}(j)$ is the mean of the normalized L2 norms of column $
 the fc1 weight matrix and row $j$ of the fc2 weight matrix. Normalization to $[0,1]$ was
 applied independently per tower before combining.
 
-Pruning was applied at 13 sparsity levels: $\{0\%, 5\%, 10\%, 15\%, 20\%, 25\%, 30\%,
-40\%, 50\%, 60\%, 70\%, 80\%, 90\%\}$. At each level, the lowest-importance neurons were
+Pruning was applied at 13 sparsity levels (0\%, 5\%, 10\%, 15\%, 20\%, 25\%, 30\%,
+40\%, 50\%, 60\%, 70\%, 80\%, and 90\%). At each level, the lowest-importance neurons were
 removed by deleting the corresponding columns from fc1's weight matrix and rows from
 fc2's weight matrix. Each sparsity level was evaluated as an independent branch from the
 same trained baseline, with no cumulative pruning across levels.
@@ -307,6 +308,7 @@ baseline AUROC.
 \label{sec:results}
 
 \subsection{Cross-Encoder vs.\ Two-Tower Under Balanced Training}
+\label{ssec:h1}
 
 Table~\ref{tab:balanced} presents the performance of both architectures at the 1:1 negative sampling ratio across five random seeds.
 
@@ -363,6 +365,7 @@ The accuracy gap is smaller than the AUROC gap because accuracy is measured at a
 \end{figure}
 
 \subsection{Robustness to Class Imbalance}
+\label{ssec:h2}
 
 Table~\ref{tab:imbalance} presents the performance of both architectures at both negative sampling ratios, allowing direct comparison of the degradation incurred by each model when moving from balanced to realistic training conditions.
 
@@ -393,6 +396,7 @@ This result has direct practical implications. Curated regulatory databases such
 \end{table}
 
 \subsection{Representational Redundancy via Neuron Pruning}
+\label{ssec:h3}
 
 Table~\ref{tab:pruning} presents the post-hoc and fine-tuned AUROC retention across all 13 tested sparsity levels. Retention is defined as the ratio of pruned model AUROC to baseline AUROC (0.8015).
 
