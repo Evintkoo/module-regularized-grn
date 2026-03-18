@@ -455,4 +455,89 @@ This finding connects causally to C1. If the two-tower cannot exploit its full 5
   \label{fig:scatter}
 \end{figure}
 
+% ── V. DISCUSSION ────────────────────────────────────────────────────────────
+\section{Discussion}
+\label{sec:discussion}
+
+The three contributions investigated in this paper form a coherent account of
+the relationship between architectural inductive bias and representational
+efficiency in neural GRN inference. The cross-encoder's advantage over the
+two-tower (C1) is robust to realistic class imbalance where the two-tower fails
+(C2), and the pruning analysis explains \emph{why} the two-tower is limited:
+its nominal parameter count does not reflect its effective capacity (C3).
+
+\textbf{Unified interpretation.} The factorized two-tower architecture imposes
+a strong inductive bias that is both its strength and its weakness. By
+separating TF and gene encoding, the two-tower enables efficient inference at
+scale: given pre-computed TF and gene embeddings, all $M \times N$ TF--gene
+regulatory scores can be computed as a matrix product in $O(Md + Nd)$ time
+rather than the $O(MNd)$ required by per-pair cross-encoder inference. This
+scalability property is genuine and relevant for genome-scale GRN inference
+over tens of thousands of gene pairs. However, the cosine-similarity scoring
+mechanism that enables this efficiency also prevents the model from learning the
+joint features that drive regulatory specificity, leading to the AUROC gap
+observed in C1 and the sensitivity to class imbalance in C2.
+
+The neuron pruning results (C3) reinforce this picture: the two-tower's
+512-dimensional hidden space is far larger than necessary, suggesting that the
+cosine similarity objective cannot leverage the representational capacity that
+is nominally available. This provides a mechanistic account of the C1 AUROC gap
+that goes beyond simply noting that the cross-encoder has a more expressive
+scoring function. The two-tower is not just less expressive in principle --- it
+actively fails to use the capacity it has.
+
+\textbf{Practical recommendations.}
+For practitioners choosing between architectures: if AUROC is the primary
+criterion, the cross-encoder is the clear choice. If scalability to
+genome-scale pair evaluation ($10^6$--$10^8$ pairs) is paramount, the
+two-tower may be preferred, with practitioners noting a 6--10~AUROC point
+cost relative to a cross-encoder of comparable size; the 90\%-sparse
+two-tower achieves baseline performance at reduced representation size.
+
+\textbf{Limitations.} This study uses a single biological dataset (human brain
+single-nucleus RNA-seq); whether the cross-encoder advantage persists across
+other tissues, organisms, or expression modalities is not established. Training
+was performed on CPU hardware, which constrains the scale of architectures that
+could be practically evaluated; larger models with wider hidden layers or
+additional depth might close the AUROC gap. The pruning experiment was
+conducted at a single seed, and the non-monotonic fine-tuning behavior suggests
+that the 10-epoch fine-tune budget is insufficient to fully characterize the
+relationship between sparsity and performance.
+
+\textbf{Future directions.} Three extensions are directly motivated by these
+results. First, an InfoNCE-trained two-tower, where the contrastive objective
+explicitly attracts positive TF--gene pairs and repels negatives within a
+batch, may be more robust to the marginal distribution sensitivity observed in
+C2 while retaining the two-tower's inference efficiency. Second, Deep Mutual
+Learning between two decoders may address the redundancy problem (C3) by
+introducing a diversity pressure through the agreement regularization term.
+Third, a cross-attention two-tower --- where the gene encoder attends over the
+TF encoding before producing a final representation --- would bridge the two
+architectures, enabling per-pair interaction features while maintaining the
+factorized structure required for efficient inference.
+
+% ── VI. CONCLUSION ───────────────────────────────────────────────────────────
+\section{Conclusion}
+\label{sec:conclusion}
+
+This paper has compared two-tower and cross-encoder neural architectures for
+TF--gene regulatory edge prediction from single-nucleus RNA-seq data under
+parameter-matched, data-matched conditions. The cross-encoder achieves 9.4
+higher AUROC points than the two-tower under balanced training (0.9040 vs.\
+0.8097) and remains stable under 5:1 negative sampling where the two-tower
+degrades by 6.6~points. A structured neuron pruning analysis reveals that
+post-hoc AUROC retention never falls below 99.96\% of baseline at any sparsity
+level up to 90\%, with 51 neurons per tower (10\% of 512) sufficient to match
+baseline performance without additional training. These findings show that the
+two-tower's AUROC deficit reflects wasted representational capacity caused by
+the geometric constraints of cosine similarity scoring, not a parameter
+shortfall. For GRN inference tasks prioritizing discriminative accuracy, the
+cross-encoder is recommended; for genome-scale applications requiring efficient
+inference, the compressed two-tower at 90\% neuron sparsity offers equivalent
+performance at substantially reduced representation size.
+
+% ── REFERENCES ───────────────────────────────────────────────────────────────
+\bibliographystyle{IEEEtran}
+\bibliography{chapter_phase8}
+
 \end{document}
