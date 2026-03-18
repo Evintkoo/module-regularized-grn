@@ -1,0 +1,105 @@
+\documentclass[journal]{IEEEtran}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{cite}
+
+\begin{document}
+
+\title{Modular versus Monolithic Neural Architectures for Gene Regulatory
+Network Inference: Capacity, Robustness, and Representational Efficiency}
+
+\author{Evint Leovonzko%
+\thanks{E. Leovonzko is with [Department], [University], [City, Country].
+E-mail: [email]. Manuscript received 2026.}}
+
+\maketitle
+
+\begin{abstract}
+Gene regulatory network (GRN) inference --- determining which transcription
+factors regulate which target genes from single-cell RNA-sequencing data --- is
+a core problem in computational biology. A fundamental architectural choice is
+whether to encode transcription factor (TF) and gene representations
+independently (two-tower/dual-encoder) or jointly (cross-encoder). We present
+a parameter-matched comparison of both architectures on a human brain
+single-nucleus RNA-seq dataset (39K TF--gene pairs, 5.58M parameters each)
+under balanced (1:1) and realistic (5:1) negative-to-positive sampling ratios.
+The cross-encoder achieves an AUROC of 0.9040 versus 0.8097 for the two-tower
+under balanced training --- a gap of 9.4 points consistent across five random
+seeds. Under 5:1 negative sampling, the two-tower AUROC degrades by 6.6 points
+(0.8097~$\to$~0.7434) while the cross-encoder remains stable (0.9040~$\to$~0.9150),
+demonstrating that cosine similarity scoring is geometrically sensitive to
+class imbalance. A structured neuron pruning analysis on the trained two-tower
+model shows that post-hoc AUROC retention never falls below 99.96\% of
+baseline at any sparsity level tested up to 90\% (51 of 512 neurons retained
+per tower), revealing that the two-tower fails to utilize its nominal
+parameter budget. This redundancy provides a mechanistic account of the
+cross-encoder's advantage and suggests that a 90\%-sparse two-tower matches
+baseline performance without any fine-tuning.
+\end{abstract}
+
+\begin{IEEEkeywords}
+gene regulatory network inference, two-tower architecture, cross-encoder,
+dual-encoder, neural network pruning, single-cell RNA-seq, representation
+learning, link prediction, class imbalance
+\end{IEEEkeywords}
+
+% ── I. INTRODUCTION ──────────────────────────────────────────────────────────
+\section{Introduction}
+\label{sec:intro}
+
+Gene regulatory network (GRN) inference --- the problem of identifying which
+transcription factors (TFs) regulate which target genes --- is a fundamental
+challenge in computational biology. Understanding transcriptional regulatory
+relationships is essential for deciphering developmental programs, disease
+mechanisms, and therapeutic targets. With the availability of large-scale
+single-nucleus RNA-sequencing (snRNA-seq) data, machine learning methods have
+emerged that cast GRN inference as binary link prediction: given a candidate
+TF--gene pair and their expression profiles, predict whether a regulatory
+relationship exists~\cite{aibar2017,huynh2010}.
+
+A central architectural question in link prediction is whether entity
+representations should be computed independently (a \emph{two-tower} or
+dual-encoder model~\cite{huang2013,bromley1993}) or jointly (a
+\emph{cross-encoder}~\cite{nogueira2019,humeau2020}). Two-tower models score
+interactions via cosine similarity of independently computed encodings,
+enabling efficient inference at scale. Cross-encoders process pairs jointly,
+allowing arbitrary interaction features to be learned before scoring. In
+information retrieval, cross-encoders consistently outperform two-tower models
+when precise ranking quality is needed~\cite{nogueira2019,humeau2020}, but
+whether this advantage holds in computational biology --- where entities have
+distinct biological identities and the regulatory signal is low-dimensional ---
+has not been established under controlled, parameter-matched conditions.
+
+Three open questions motivate this work: (1)~Does a cross-encoder achieve
+higher discriminative AUROC than a parameter-matched two-tower for TF--gene
+link prediction? (2)~Is the two-tower's cosine similarity scoring
+disproportionately sensitive to class imbalance relative to a cross-encoder?
+(3)~Does the trained two-tower actually utilize its nominal hidden-layer
+capacity, or is much of it redundant?
+
+This paper makes three contributions:
+\begin{itemize}
+\item \textbf{C1:} A parameter-matched comparison (5.58M parameters each)
+  of two-tower and cross-encoder MLPs on human brain snRNA-seq data under
+  both balanced (1:1) and realistic (5:1) negative-to-positive sampling ratios.
+\item \textbf{C2:} Demonstration that the two-tower degrades by 6.6~AUROC
+  points under 5:1 negative sampling --- approximating real-world regulatory
+  database sparsity --- while the cross-encoder remains stable.
+\item \textbf{C3:} A structured neuron pruning analysis showing that
+  post-hoc AUROC retention is $\geq$0.9996 at all sparsity levels up to
+  90\%, revealing that the two-tower underutilizes its parameter budget
+  due to the geometric constraints of cosine similarity scoring.
+\end{itemize}
+
+The remainder of this paper is organized as follows.
+Section~\ref{sec:related} reviews related work.
+Section~\ref{sec:methods} describes the dataset, architectures, training
+protocol, and pruning procedure.
+Section~\ref{sec:results} presents experimental results.
+Section~\ref{sec:discussion} discusses implications and limitations.
+Section~\ref{sec:conclusion} concludes.
+
+\end{document}
