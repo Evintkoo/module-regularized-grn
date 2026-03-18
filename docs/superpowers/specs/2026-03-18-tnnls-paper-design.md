@@ -19,6 +19,7 @@ Reformat and restructure `paper/chapter_phase8.md` into a publication-ready IEEE
 - Layout: two-column, 10pt font
 - Citation style: IEEE numbered `[1]`, `[2]`, ...
 - Reference style: `\usepackage{cite}` + BibTeX
+- Required packages: `cite`, `graphicx`, `amsmath`, `amssymb`, `inputenc` (utf8)
 
 ## Output Files
 
@@ -37,15 +38,15 @@ The existing `paper/chapter_phase8.bib` is reused unchanged. No new `.bib` file 
 
 **Title:** Modular versus Monolithic Neural Architectures for Gene Regulatory Network Inference: Capacity, Robustness, and Representational Efficiency
 
-**Author block:**
+**Author block** (`\documentclass[journal]{IEEEtran}` standard, not compsoc):
 ```latex
 \author{Evint Leovonzko%
-\IEEEcompsocitemizethanks{
-\IEEEcompsocthanksitem Manuscript received 2026.
-}}
+\thanks{E. Leovonzko is with [Department], [University], [City, Country].
+E-mail: [email]. Manuscript received 2026.}}
 ```
+Replace bracketed placeholders with actual affiliation details before submission.
 
-**Abstract (~200 words):** Covers problem (GRN inference as link prediction), approach (parameter-matched two-tower vs cross-encoder, 1:1 and 5:1 negative sampling, neuron pruning), key results (cross-encoder +9.4 AUROC points, two-tower degrades 6.6 pts at 5:1 vs cross-encoder stable, post-hoc AUROC never below 95% retention threshold at any sparsity up to 90%), and implication (cross-encoder preferred for discriminative tasks; two-tower viable at 83% compression with no performance loss).
+**Abstract (~200 words):** Covers problem (GRN inference as link prediction), approach (parameter-matched two-tower vs cross-encoder, 1:1 and 5:1 negative sampling, structured neuron pruning), key results (cross-encoder +9.4 AUROC points at 1:1; two-tower degrades 6.6 AUROC pts at 5:1 vs cross-encoder stable; post-hoc AUROC retention never falls below 99.96% of baseline at any neuron sparsity level up to 90%), and implication (cross-encoder preferred for discriminative tasks; two-tower at 90% neuron sparsity per tower matches baseline with no additional training).
 
 **Index Terms:** gene regulatory network inference, two-tower architecture, cross-encoder, dual-encoder, neural network pruning, single-cell RNA-seq, representation learning, link prediction, class imbalance
 
@@ -153,7 +154,11 @@ Do NOT reuse the dissertation conclusion verbatim — it is too long and recaps 
 
 ### References
 
-12 references, IEEE numbered format [1]–[12]. Citation order follows first appearance in text. BibTeX keys unchanged from `chapter_phase8.bib`. The `[@chen2016]` XGBoost reference is unused in the journal paper and should be omitted from the compiled bibliography (BibTeX handles this automatically).
+12–13 references, IEEE numbered format [1]–[N]. Citation order follows first appearance in text. BibTeX keys unchanged from `chapter_phase8.bib`.
+
+The `chen2016` entry is cited in §4.2.3 for the element-wise product feature engineering technique. **Keep this citation** in Section II-C and retain `chen2016` in the bibliography (13 references total). BibTeX will automatically exclude any entries not cited in the text.
+
+Bibliography declaration: `\bibliography{chapter_phase8}`
 
 ---
 
