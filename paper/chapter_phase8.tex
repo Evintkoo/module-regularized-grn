@@ -65,7 +65,7 @@
 % Set default figure placement to htbp
 \def\fps@figure{htbp}
 \makeatother
-\usepackage{svg}
+% svg package removed -- using PNG figures
 % definitions for citeproc citations
 \NewDocumentCommand\citeproctext{}{}
 \NewDocumentCommand\citeproc{mm}{%
@@ -362,7 +362,7 @@ architectures side by side.
 
 \begin{figure}
 \centering
-\pandocbounded{\includesvg[keepaspectratio]{figures/fig4_1_architecture.svg}}
+\includegraphics[width=\linewidth]{figures/fig4_1_architecture.png}
 \caption{Architecture comparison: Two-Tower MLP (left) versus
 Cross-Encoder MLP (right). Both architectures use identical embedding
 tables and share comparable parameter counts (5.58M). The key difference
@@ -533,7 +533,7 @@ experimental conditions.
 
 \begin{figure}
 \centering
-\pandocbounded{\includesvg[keepaspectratio]{figures/fig4_2_auroc_comparison.svg}}
+\includegraphics[width=\linewidth]{figures/fig4_2_auroc_comparison.png}
 \caption{AUROC by model and negative sampling ratio. Error bars reflect
 standard deviation across 5 seeds. The cross-encoder maintains high
 AUROC under both negative ratios while the two-tower degrades
@@ -724,7 +724,7 @@ trade-off and the compression-AUROC relationship.
 
 \begin{figure}
 \centering
-\pandocbounded{\includesvg[keepaspectratio]{figures/fig4_3_pruning_curve.svg}}
+\includegraphics[width=\linewidth]{figures/fig4_3_pruning_curve.png}
 \caption{Sparsity vs AUROC retention for post-hoc (blue) and fine-tuned
 (red) evaluations. The solid black line marks the baseline (1.000); the
 solid red line marks the 95\% retention threshold. Post-hoc retention
@@ -733,7 +733,7 @@ never falls below 0.9996.}
 
 \begin{figure}
 \centering
-\pandocbounded{\includesvg[keepaspectratio]{figures/fig4_4_compression_scatter.svg}}
+\includegraphics[width=\linewidth]{figures/fig4_4_compression_scatter.png}
 \caption{Compression ratio vs post-hoc AUROC. Each point represents one
 sparsity level; higher compression (lower ratio) corresponds to higher
 sparsity. The horizontal reference line marks the baseline AUROC
