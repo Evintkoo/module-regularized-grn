@@ -1,0 +1,88 @@
+\relax 
+\citation{aibar2017,huynh2010}
+\citation{huang2013,bromley1993}
+\citation{nogueira2019,humeau2020}
+\citation{nogueira2019,humeau2020}
+\citation{garcia2019}
+\citation{han2018}
+\@writefile{toc}{\contentsline {section}{\numberline {I}Introduction}{1}{}\protected@file@percent }
+\newlabel{sec:intro}{{I}{1}{}{section.1}{}}
+\citation{huynh2010}
+\citation{aibar2017}
+\citation{huang2013}
+\citation{bromley1993}
+\citation{nogueira2019}
+\citation{humeau2020}
+\citation{khattab2020}
+\citation{rendle2010}
+\citation{han2015}
+\citation{han2015}
+\citation{frankle2019}
+\citation{garcia2019}
+\citation{han2018}
+\@writefile{toc}{\contentsline {section}{\numberline {II}Related Work}{2}{}\protected@file@percent }
+\newlabel{sec:related}{{II}{2}{}{section.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-A}}Gene Regulatory Network Inference as Link Prediction}{2}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-B}}Two-Tower (Dual-Encoder) Architectures}{2}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-C}}Cross-Encoder Architectures}{2}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {II-D}}Structured Pruning and Representational Redundancy}{2}{}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {III}Methods}{2}{}\protected@file@percent }
+\newlabel{sec:methods}{{III}{2}{}{section.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-A}}Dataset and Prior Knowledge}{2}{}\protected@file@percent }
+\newlabel{ssec:data}{{\mbox  {III-A}}{2}{}{subsection.3.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-B}}Model Architectures}{2}{}\protected@file@percent }
+\newlabel{ssec:arch}{{\mbox  {III-B}}{2}{}{subsection.3.2}{}}
+\citation{kingma2014}
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces Two-Tower MLP (left, blue) versus Cross-Encoder MLP (right, red). Both use identical embedding tables and 5.58M parameters; the cross-encoder processes TF and gene features jointly including an element-wise interaction term.}}{3}{}\protected@file@percent }
+\newlabel{fig:arch}{{1}{3}{}{figure.1}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-C}}Training Protocol}{3}{}\protected@file@percent }
+\newlabel{ssec:training}{{\mbox  {III-C}}{3}{}{subsection.3.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-D}}Evaluation}{3}{}\protected@file@percent }
+\newlabel{ssec:eval}{{\mbox  {III-D}}{3}{}{subsection.3.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-E}}Negative Sampling}{3}{}\protected@file@percent }
+\newlabel{ssec:negsampling}{{\mbox  {III-E}}{3}{}{subsection.3.5}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {III-F}}Neuron Pruning Protocol}{3}{}\protected@file@percent }
+\newlabel{ssec:pruning}{{\mbox  {III-F}}{3}{}{subsection.3.6}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {IV}Results}{4}{}\protected@file@percent }
+\newlabel{sec:results}{{IV}{4}{}{section.4}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-A}}Cross-Encoder vs.\ Two-Tower Under Balanced Training}{4}{}\protected@file@percent }
+\newlabel{ssec:h1}{{\mbox  {IV-A}}{4}{}{subsection.4.1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {I}{\ignorespaces Performance at 1:1 Negative Sampling Ratio (Mean $\pm $ Std, 5 Seeds)}}{4}{}\protected@file@percent }
+\newlabel{tab:balanced}{{I}{4}{}{table.1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {II}{\ignorespaces Per-Seed AUROC at 1:1 Negative Sampling Ratio}}{4}{}\protected@file@percent }
+\newlabel{tab:perseed}{{II}{4}{}{table.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces AUROC by model and negative sampling ratio across 5 seeds. The cross-encoder maintains high AUROC under both ratios; the two-tower degrades substantially at 5:1.}}{4}{}\protected@file@percent }
+\newlabel{fig:auroc}{{2}{4}{}{figure.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-B}}Robustness to Class Imbalance}{4}{}\protected@file@percent }
+\newlabel{ssec:h2}{{\mbox  {IV-B}}{4}{}{subsection.4.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {III}{\ignorespaces Performance Across Negative Sampling Ratios (Mean $\pm $ Std, 5 Seeds)}}{5}{}\protected@file@percent }
+\newlabel{tab:imbalance}{{III}{5}{}{table.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {\mbox  {IV-C}}Representational Redundancy via Neuron Pruning}{5}{}\protected@file@percent }
+\newlabel{ssec:h3}{{\mbox  {IV-C}}{5}{}{subsection.4.3}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces AUROC retention vs.\ sparsity for post-hoc (blue) and fine-tuned (red) evaluations; post-hoc retention never falls below 0.9996.}}{6}{}\protected@file@percent }
+\newlabel{fig:pruning}{{3}{6}{}{figure.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {V}Discussion}{6}{}\protected@file@percent }
+\newlabel{sec:discussion}{{V}{6}{}{section.5}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces Compression ratio vs.\ post-hoc AUROC; points above the reference line (baseline AUROC 0.8015) represent post-hoc improvements over the unpruned model.}}{6}{}\protected@file@percent }
+\newlabel{fig:scatter}{{4}{6}{}{figure.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {IV}{\ignorespaces AUROC Retention at Each Sparsity Level. Post-hoc: pruned model evaluated immediately. Fine-tuned: 10 further epochs with fresh Adam state. Baseline AUROC~=~0.8015 (see footnote~1 re comparability with Table~II). Comp.\ Ratio = fraction of total parameters remaining after pruning; embedding tables account for $\approx $81\% of parameters, so 90\% neuron sparsity reduces total parameters by only $\approx $17\%.}}{7}{}\protected@file@percent }
+\newlabel{tab:pruning}{{IV}{7}{}{table.4}{}}
+\bibstyle{IEEEtran}
+\bibdata{chapter_phase8}
+\bibcite{aibar2017}{1}
+\bibcite{huynh2010}{2}
+\bibcite{huang2013}{3}
+\bibcite{bromley1993}{4}
+\bibcite{nogueira2019}{5}
+\bibcite{humeau2020}{6}
+\bibcite{garcia2019}{7}
+\bibcite{han2018}{8}
+\bibcite{khattab2020}{9}
+\bibcite{rendle2010}{10}
+\bibcite{han2015}{11}
+\bibcite{frankle2019}{12}
+\bibcite{kingma2014}{13}
+\@writefile{toc}{\contentsline {section}{\numberline {VI}Conclusion}{8}{}\protected@file@percent }
+\newlabel{sec:conclusion}{{VI}{8}{}{section.6}{}}
+\@writefile{toc}{\contentsline {section}{References}{8}{}\protected@file@percent }
+\gdef \@abspage@last{8}

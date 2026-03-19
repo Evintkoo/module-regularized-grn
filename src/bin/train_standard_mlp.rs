@@ -157,6 +157,26 @@ fn calculate_f1(predictions: &[f32], labels: &[f32]) -> f32 {
     if prec + rec > 0.0 { 2.0 * prec * rec / (prec + rec) } else { 0.0 }
 }
 
+fn calculate_auprc(predictions: &[f32], labels: &[f32]) -> f32 {
+    let mut pairs: Vec<(f32, f32)> = predictions.iter().zip(labels.iter())
+        .map(|(&p, &l)| (p, l)).collect();
+    pairs.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap());
+    let n_pos = labels.iter().filter(|&&l| l == 1.0).count() as f32;
+    if n_pos == 0.0 { return 0.0; }
+    let mut tp = 0.0f32;
+    let mut fp = 0.0f32;
+    let mut ap = 0.0f32;
+    let mut prev_recall = 0.0f32;
+    for &(_, label) in &pairs {
+        if label == 1.0 { tp += 1.0; } else { fp += 1.0; }
+        let recall    = tp / n_pos;
+        let precision = tp / (tp + fp);
+        ap += precision * (recall - prev_recall);
+        prev_recall = recall;
+    }
+    ap
+}
+
 fn bootstrap_ci(y_true: &[f64], y_pred: &[f64], n: usize, seed: u64) -> (f64, f64, f64) {
     let mut rng = StdRng::seed_from_u64(seed);
     let indices: Vec<usize> = (0..y_true.len()).collect();
@@ -316,6 +336,7 @@ fn main() -> Result<()> {
     let mut seed_accuracies: Vec<f32>       = Vec::new();
     let mut seed_aurocs:     Vec<f32>       = Vec::new();
     let mut seed_f1s:        Vec<f32>       = Vec::new();
+    let mut seed_auprcs:     Vec<f32>       = Vec::new();
     let mut all_test_preds_ensemble: Vec<Vec<f32>> = Vec::new();
     let mut best_final_val_acc = 0.0f32;
     let mut best_test_preds:   Vec<f32>     = Vec::new();
@@ -391,10 +412,10 @@ fn main() -> Result<()> {
         }
 
         // Test evaluation
-        let (test_acc, test_auroc, test_f1) = evaluate_detailed(
+        let (test_acc, test_auroc, test_f1, test_auprc) = evaluate_detailed(
             &mut model, &test_data, &tf_expr_map, &gene_expr_map, expr_dim, batch_size
         );
-        println!("  acc={:.2}% auroc={:.4} f1={:.4}", test_acc*100.0, test_auroc, test_f1);
+        println!("  acc={:.2}% auroc={:.4} f1={:.4} auprc={:.4}", test_acc*100.0, test_auroc, test_f1, test_auprc);
 
         // Collect test predictions for ensemble
         let mut preds: Vec<f32> = Vec::new();
@@ -417,6 +438,7 @@ fn main() -> Result<()> {
         seed_accuracies.push(test_acc);
         seed_aurocs.push(test_auroc);
         seed_f1s.push(test_f1);
+        seed_auprcs.push(test_auprc);
     }
 
     // Ensemble accuracy
@@ -427,6 +449,8 @@ fn main() -> Result<()> {
     let ensemble_acc = ensemble_preds.iter().zip(test_labels_once.iter())
         .filter(|(&p, &l)| (p >= 0.5) == (l == 1.0))
         .count() as f32 / n_test as f32;
+    let ensemble_auroc = calculate_auroc(&ensemble_preds, &test_labels_once);
+    let ensemble_auprc = calculate_auprc(&ensemble_preds, &test_labels_once);
 
     let bp: Vec<f64> = best_test_preds.iter().map(|&x| x as f64).collect();
     let bl: Vec<f64> = test_labels_once.iter().map(|&x| x as f64).collect();
@@ -449,14 +473,30 @@ fn main() -> Result<()> {
         "seed_accuracies": seed_accuracies,
         "seed_aurocs": seed_aurocs,
         "seed_f1s": seed_f1s,
+        "seed_auprcs": seed_auprcs,
         "mean_accuracy": mean_acc,
         "std_accuracy": std_acc,
         "ensemble_accuracy": ensemble_acc,
+        "ensemble_auroc": ensemble_auroc,
+        "ensemble_auprc": ensemble_auprc,
         "bootstrap_ci_lower": ci_lower,
         "bootstrap_ci_upper": ci_upper,
     });
     std::fs::write(out_file, serde_json::to_string_pretty(&result)?)?;
     println!("✓ Saved {}", out_file);
+
+    // Save raw predictions for ROC/PR curve generation
+    let pred_file = if neg_ratio == 1 {
+        "results/two_tower_1to1_predictions.json"
+    } else {
+        "results/two_tower_5to1_predictions.json"
+    };
+    let pred_json = serde_json::json!({
+        "labels": test_labels_once.iter().map(|&x| x as f64).collect::<Vec<_>>(),
+        "predictions": best_test_preds.iter().map(|&x| x as f64).collect::<Vec<_>>(),
+    });
+    std::fs::write(pred_file, serde_json::to_string_pretty(&pred_json)?)?;
+    println!("✓ Saved {}", pred_file);
 
     // Backward-compat single-seed result
     let compat = serde_json::json!({
@@ -510,7 +550,7 @@ fn evaluate_detailed(
     gene_expr_map: &HashMap<usize, Array1<f32>>,
     expr_dim:      usize,
     batch_size:    usize,
-) -> (f32, f32, f32) {
+) -> (f32, f32, f32, f32) {
     let mut all_preds:  Vec<f32> = Vec::new();
     let mut all_labels: Vec<f32> = Vec::new();
     for start in (0..data.len()).step_by(batch_size) {
@@ -530,5 +570,6 @@ fn evaluate_detailed(
     let accuracy = n_correct as f32 / all_preds.len() as f32;
     let auroc    = calculate_auroc(&all_preds, &all_labels);
     let f1       = calculate_f1(&all_preds, &all_labels);
-    (accuracy, auroc, f1)
+    let auprc    = calculate_auprc(&all_preds, &all_labels);
+    (accuracy, auroc, f1, auprc)
 }

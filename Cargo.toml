@@ -60,6 +60,10 @@ name = "neuron_pruning"
 path = "src/bin/neuron_pruning.rs"
 
 [[bin]]
+name = "cross_encoder_pruning"
+path = "src/bin/cross_encoder_pruning.rs"
+
+[[bin]]
 name = "generate_chapter_figures"
 path = "src/bin/generate_chapter_figures.rs"
 

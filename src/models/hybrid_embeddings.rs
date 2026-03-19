@@ -396,6 +396,74 @@ impl HybridEmbeddingModel {
             gene_fc2_row_norms,
         }
     }
+
+    /// Compute combined importance scores for each fc1 output neuron per tower.
+    /// score(j) = alpha * activation_freq(j) + (1-alpha) * weight_magnitude(j)
+    /// Both components are normalized to [0,1] independently per tower before combining.
+    pub fn importance_scores(&self, stats: &NeuronStats, alpha: f32) -> LayerScores {
+        let hidden_dim = stats.tf_fc1_activation_counts.len();
+        let total = stats.total_examples as f32;
+
+        let normalize = |v: &[f32]| -> Vec<f32> {
+            let min = v.iter().cloned().fold(f32::INFINITY, f32::min);
+            let max = v.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
+            let range = max - min;
+            if range <= 0.0 {
+                vec![0.5; v.len()]
+            } else {
+                v.iter().map(|&x| (x - min) / range).collect()
+            }
+        };
+
+        // TF tower
+        let tf_act_freq: Vec<f32> = stats.tf_fc1_activation_counts.iter()
+            .map(|&c| c as f32 / total).collect();
+        let tf_fc1_n = normalize(&stats.tf_fc1_col_norms);
+        let tf_fc2_n = normalize(&stats.tf_fc2_row_norms);
+        let tf_weight_mag: Vec<f32> = (0..hidden_dim)
+            .map(|j| (tf_fc1_n[j] + tf_fc2_n[j]) / 2.0).collect();
+        let tf_scores: Vec<f32> = (0..hidden_dim)
+            .map(|j| alpha * tf_act_freq[j] + (1.0 - alpha) * tf_weight_mag[j]).collect();
+
+        // Gene tower
+        let gene_act_freq: Vec<f32> = stats.gene_fc1_activation_counts.iter()
+            .map(|&c| c as f32 / total).collect();
+        let gene_fc1_n = normalize(&stats.gene_fc1_col_norms);
+        let gene_fc2_n = normalize(&stats.gene_fc2_row_norms);
+        let gene_weight_mag: Vec<f32> = (0..hidden_dim)
+            .map(|j| (gene_fc1_n[j] + gene_fc2_n[j]) / 2.0).collect();
+        let gene_scores: Vec<f32> = (0..hidden_dim)
+            .map(|j| alpha * gene_act_freq[j] + (1.0 - alpha) * gene_weight_mag[j]).collect();
+
+        LayerScores { tf_fc1: tf_scores, gene_fc1: gene_scores }
+    }
+
+    /// Structurally prune both towers to the given sparsity level.
+    /// Removes the lowest-scoring (1-keep) fraction of fc1 output neurons,
+    /// and the corresponding rows in fc2 inputs.
+    /// TF and Gene towers are pruned independently (different neurons may be removed).
+    pub fn prune_to_sparsity(&mut self, scores: &LayerScores, sparsity: f32) {
+        let hidden_dim = scores.tf_fc1.len();
+        let n_keep = ((1.0 - sparsity) * hidden_dim as f32).round() as usize;
+        let n_keep = n_keep.max(1);
+
+        // TF tower: select top-n_keep by score, sorted ascending for correct indexing
+        let mut tf_order: Vec<usize> = (0..hidden_dim).collect();
+        tf_order.sort_by(|&a, &b| scores.tf_fc1[b].partial_cmp(&scores.tf_fc1[a]).unwrap_or(std::cmp::Ordering::Equal));
+        let mut tf_keep: Vec<usize> = tf_order[..n_keep].to_vec();
+        tf_keep.sort_unstable();
+
+        // Gene tower
+        let mut gene_order: Vec<usize> = (0..hidden_dim).collect();
+        gene_order.sort_by(|&a, &b| scores.gene_fc1[b].partial_cmp(&scores.gene_fc1[a]).unwrap_or(std::cmp::Ordering::Equal));
+        let mut gene_keep: Vec<usize> = gene_order[..n_keep].to_vec();
+        gene_keep.sort_unstable();
+
+        self.tf_fc1.prune_outputs(&tf_keep);
+        self.tf_fc2.prune_inputs(&tf_keep);
+        self.gene_fc1.prune_outputs(&gene_keep);
+        self.gene_fc2.prune_inputs(&gene_keep);
+    }
 }
 
 #[cfg(test)]

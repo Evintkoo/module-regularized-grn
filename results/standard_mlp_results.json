@@ -1,8 +1,8 @@
 {
   "architecture": "Standard MLP (Two-pathway)",
   "metrics": {
-    "accuracy": 0.7393444776535034,
-    "f1_score": 0.658810555934906
+    "accuracy": 0.7055844664573669,
+    "f1_score": 0.6024691462516785
   },
   "model": {
     "embed_dim": 512,

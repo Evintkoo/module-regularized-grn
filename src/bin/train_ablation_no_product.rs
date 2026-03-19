@@ -1,9 +1,9 @@
-/// Phase 8 Model D: Cross-Encoder training
-/// Trains CrossEncoderModel at 1:1 and 5:1 negative ratios, 5 seeds each.
-/// Writes results/cross_encoder_1to1.json and results/cross_encoder_5to1.json
+/// Phase 8 Ablation: Cross-Encoder No-Product training (Reviewer 2 M1 ablation)
+/// Trains CrossEncoderNoProductModel at 1:1 and 5:1 negative ratios, 5 seeds each.
+/// Writes results/ablation_no_product_1to1.json and results/ablation_no_product_5to1.json
 use module_regularized_grn::{
     Config,
-    models::cross_encoder::CrossEncoderModel,
+    models::cross_encoder_no_product::CrossEncoderNoProductModel,
     models::nn::bce_loss_backward,
     data::{PriorKnowledge, PriorDatasetBuilder, expression::ExpressionData},
 };
@@ -27,7 +27,7 @@ struct AdamState {
 }
 
 impl AdamState {
-    fn new(model: &CrossEncoderModel) -> Self {
+    fn new(model: &CrossEncoderNoProductModel) -> Self {
         Self {
             m_tf:    Array2::zeros(model.tf_embed.dim()),
             v_tf:    Array2::zeros(model.tf_embed.dim()),
@@ -50,7 +50,7 @@ impl AdamState {
     }
 }
 
-fn adam_step(model: &mut CrossEncoderModel, state: &mut AdamState, lr: f32, clip: f32) {
+fn adam_step(model: &mut CrossEncoderNoProductModel, state: &mut AdamState, lr: f32, clip: f32) {
     state.t += 1;
     let b1  = 0.9f32;
     let b2  = 0.999f32;
@@ -148,24 +148,6 @@ fn calculate_auroc(predictions: &[f32], labels: &[f32]) -> f32 {
     auc
 }
 
-fn calculate_f1(predictions: &[f32], labels: &[f32]) -> f32 {
-    let mut tp = 0.0f32;
-    let mut fp = 0.0f32;
-    let mut fn_ = 0.0f32;
-    for (&p, &l) in predictions.iter().zip(labels.iter()) {
-        let pred = if p >= 0.5 { 1.0f32 } else { 0.0 };
-        match (pred as i32, l as i32) {
-            (1, 1) => tp += 1.0,
-            (1, 0) => fp += 1.0,
-            (0, 1) => fn_ += 1.0,
-            _ => {}
-        }
-    }
-    let precision = if tp + fp > 0.0 { tp / (tp + fp) } else { 0.0 };
-    let recall    = if tp + fn_ > 0.0 { tp / (tp + fn_) } else { 0.0 };
-    if precision + recall > 0.0 { 2.0 * precision * recall / (precision + recall) } else { 0.0 }
-}
-
 fn calculate_auprc(predictions: &[f32], labels: &[f32]) -> f32 {
     let mut pairs: Vec<(f32, f32)> = predictions.iter().zip(labels.iter())
         .map(|(&p, &l)| (p, l)).collect();
@@ -184,6 +166,24 @@ fn calculate_auprc(predictions: &[f32], labels: &[f32]) -> f32 {
         prev_recall = recall;
     }
     ap
+}
+
+fn calculate_f1(predictions: &[f32], labels: &[f32]) -> f32 {
+    let mut tp = 0.0f32;
+    let mut fp = 0.0f32;
+    let mut fn_ = 0.0f32;
+    for (&p, &l) in predictions.iter().zip(labels.iter()) {
+        let pred = if p >= 0.5 { 1.0f32 } else { 0.0 };
+        match (pred as i32, l as i32) {
+            (1, 1) => tp += 1.0,
+            (1, 0) => fp += 1.0,
+            (0, 1) => fn_ += 1.0,
+            _ => {}
+        }
+    }
+    let precision = if tp + fp > 0.0 { tp / (tp + fp) } else { 0.0 };
+    let recall    = if tp + fn_ > 0.0 { tp / (tp + fn_) } else { 0.0 };
+    if precision + recall > 0.0 { 2.0 * precision * recall / (precision + recall) } else { 0.0 }
 }
 
 /// Bootstrap CI over test-set predictions.
@@ -208,7 +208,7 @@ fn bootstrap_ci(y_true: &[f64], y_pred: &[f64], n: usize, seed: u64) -> (f64, f6
 }
 
 fn evaluate_detailed(
-    model:         &mut CrossEncoderModel,
+    model:         &mut CrossEncoderNoProductModel,
     data:          &[(usize, usize, f32)],
     tf_expr_map:   &HashMap<usize, Array1<f32>>,
     gene_expr_map: &HashMap<usize, Array1<f32>>,
@@ -275,7 +275,7 @@ fn build_expression_maps(
 }
 
 fn main() -> Result<()> {
-    println!("=== Phase 8: Cross-Encoder Training ===\n");
+    println!("=== Phase 8 Ablation: Cross-Encoder No-Product Training ===\n");
 
     let config    = Config::load_default()?;
     let priors    = PriorKnowledge::from_file("data/priors/merged_priors.json")?;
@@ -348,7 +348,7 @@ fn main() -> Result<()> {
 
         for &seed in &seeds {
             println!("  seed {}:", seed);
-            let mut model = CrossEncoderModel::new(num_tfs, num_genes, embed_dim, expr_dim, hidden_dim, seed);
+            let mut model = CrossEncoderNoProductModel::new(num_tfs, num_genes, embed_dim, expr_dim, hidden_dim, seed);
             let mut state = AdamState::new(&model);
             let mut best_seed_val_acc = 0.0f32;
             let mut patience = 0usize;
@@ -430,8 +430,8 @@ fn main() -> Result<()> {
         let ensemble_acc = ensemble_preds.iter().zip(test_labels_once.iter())
             .filter(|(&p, &l)| (p >= 0.5) == (l == 1.0))
             .count() as f32 / n_test as f32;
+
         let ensemble_auroc = calculate_auroc(&ensemble_preds, &test_labels_once);
-        let ensemble_auprc = calculate_auprc(&ensemble_preds, &test_labels_once);
 
         // Bootstrap CI from best-seed predictions
         let bp: Vec<f64> = best_test_preds.iter().map(|&x| x as f64).collect();
@@ -442,11 +442,11 @@ fn main() -> Result<()> {
         let std_acc  = (seed_accuracies.iter().map(|x| (x - mean_acc).powi(2)).sum::<f32>()
                         / seeds.len() as f32).sqrt();
 
-        println!("  mean={:.2}% ±{:.2}% | ensemble={:.2}%\n",
-                 mean_acc*100.0, std_acc*100.0, ensemble_acc*100.0);
+        println!("  mean={:.2}% ±{:.2}% | ensemble={:.2}% | ensemble_auroc={:.4}\n",
+                 mean_acc*100.0, std_acc*100.0, ensemble_acc*100.0, ensemble_auroc);
 
         let result = serde_json::json!({
-            "model": "cross_encoder",
+            "model": "cross_encoder_no_product",
             "neg_ratio": neg_ratio,
             "seeds": seeds,
             "seed_accuracies": seed_accuracies,
@@ -457,31 +457,17 @@ fn main() -> Result<()> {
             "std_accuracy": std_acc,
             "ensemble_accuracy": ensemble_acc,
             "ensemble_auroc": ensemble_auroc,
-            "ensemble_auprc": ensemble_auprc,
             "bootstrap_ci_lower": ci_lower,
             "bootstrap_ci_upper": ci_upper,
         });
 
         let fname = if neg_ratio == 1 {
-            "results/cross_encoder_1to1.json"
+            "results/ablation_no_product_1to1.json"
         } else {
-            "results/cross_encoder_5to1.json"
+            "results/ablation_no_product_5to1.json"
         };
         std::fs::write(fname, serde_json::to_string_pretty(&result)?)?;
-        println!("✓ Saved {}", fname);
-
-        // Save raw predictions for ROC/PR curve generation
-        let pred_file = if neg_ratio == 1 {
-            "results/cross_encoder_1to1_predictions.json"
-        } else {
-            "results/cross_encoder_5to1_predictions.json"
-        };
-        let pred_json = serde_json::json!({
-            "labels": test_labels_once.iter().map(|&x| x as f64).collect::<Vec<_>>(),
-            "predictions": best_test_preds.iter().map(|&x| x as f64).collect::<Vec<_>>(),
-        });
-        std::fs::write(pred_file, serde_json::to_string_pretty(&pred_json)?)?;
-        println!("✓ Saved {}", pred_file);
+        println!("Saved {}", fname);
     }
 
     Ok(())
@@ -496,28 +482,32 @@ mod tests {
         let accs   = vec![0.80f32, 0.81];
         let aurocs = vec![0.81f32, 0.82];
         let f1s    = vec![0.82f32, 0.83];
+        let auprcs = vec![0.80f32, 0.81];
         let mean_acc = accs.iter().sum::<f32>() / accs.len() as f32;
         let std_acc  = (accs.iter().map(|x| (x - mean_acc).powi(2)).sum::<f32>()
                         / accs.len() as f32).sqrt();
 
         let result = serde_json::json!({
-            "model": "cross_encoder",
+            "model": "cross_encoder_no_product",
             "neg_ratio": 1,
             "seeds": [42u64, 123],
             "seed_accuracies": accs,
             "seed_aurocs": aurocs,
             "seed_f1s": f1s,
+            "seed_auprcs": auprcs,
             "mean_accuracy": mean_acc,
             "std_accuracy": std_acc,
             "ensemble_accuracy": 0.82f32,
+            "ensemble_auroc": 0.83f32,
             "bootstrap_ci_lower": 0.79f64,
             "bootstrap_ci_upper": 0.83f64,
         });
 
         let s = serde_json::to_string(&result).unwrap();
         let v: serde_json::Value = serde_json::from_str(&s).unwrap();
-        assert_eq!(v["model"].as_str().unwrap(), "cross_encoder");
-        assert!(v["seed_accuracies"].is_array());
-        assert!(v["bootstrap_ci_lower"].is_number());
+        assert_eq!(v["model"].as_str().unwrap(), "cross_encoder_no_product");
+        assert!(v["seed_aurocs"].is_array());
+        assert!(v["seed_auprcs"].is_array());
+        assert!(v["ensemble_auroc"].is_number());
     }
 }

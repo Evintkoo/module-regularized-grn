@@ -1,0 +1,250 @@
+{
+  "baseline_auroc_mean": 0.8049435615539551,
+  "baseline_auroc_per_seed": [
+    0.812075138092041,
+    0.8088136315345764,
+    0.7939420342445374
+  ],
+  "baseline_auroc_std": 0.007892410270869732,
+  "results": [
+    {
+      "finetuned_auroc_values": [
+        0.812075138092041,
+        0.8054245710372925,
+        0.7939581274986267
+      ],
+      "finetuned_retention_mean": 0.9986100196838379,
+      "finetuned_retention_std": 0.0019800481386482716,
+      "neurons_per_tower": 512,
+      "posthoc_auroc_values": [
+        0.812075138092041,
+        0.8088136315345764,
+        0.7939420342445374
+      ],
+      "posthoc_retention_mean": 1.0,
+      "posthoc_retention_std": 0.0,
+      "sparsity": 0.0
+    },
+    {
+      "finetuned_auroc_values": [
+        0.8117810487747192,
+        0.7624801993370056,
+        0.802407443523407
+      ],
+      "finetuned_retention_mean": 0.9843382835388184,
+      "finetuned_retention_std": 0.02977469190955162,
+      "neurons_per_tower": 486,
+      "posthoc_auroc_values": [
+        0.812084972858429,
+        0.8087893128395081,
+        0.7939421534538269
+      ],
+      "posthoc_retention_mean": 0.9999940991401672,
+      "posthoc_retention_std": 0.0000177496131072985,
+      "sparsity": 0.05000000074505806
+    },
+    {
+      "finetuned_auroc_values": [
+        0.806479811668396,
+        0.8001723289489746,
+        0.8050357699394226
+      ],
+      "finetuned_retention_mean": 0.9987996220588684,
+      "finetuned_retention_std": 0.010840390808880329,
+      "neurons_per_tower": 461,
+      "posthoc_auroc_values": [
+        0.8124753832817078,
+        0.8088772296905518,
+        0.793960690498352
+      ],
+      "posthoc_retention_mean": 1.0001983642578125,
+      "posthoc_retention_std": 0.00020944912103004754,
+      "sparsity": 0.10000000149011612
+    },
+    {
+      "finetuned_auroc_values": [
+        0.8151012659072876,
+        0.8087534308433533,
+        0.8063507676124573
+      ],
+      "finetuned_retention_mean": 1.0064270496368408,
+      "finetuned_retention_std": 0.00668940506875515,
+      "neurons_per_tower": 435,
+      "posthoc_auroc_values": [
+        0.8122205138206482,
+        0.8090153932571411,
+        0.7938035130500793
+      ],
+      "posthoc_retention_mean": 1.0000847578048706,
+      "posthoc_retention_std": 0.00018549792002886534,
+      "sparsity": 0.15000000596046448
+    },
+    {
+      "finetuned_auroc_values": [
+        0.8085011839866638,
+        0.8094462752342224,
+        0.7955129742622375
+      ],
+      "finetuned_retention_mean": 0.9994532465934753,
+      "finetuned_retention_std": 0.0027688120026141405,
+      "neurons_per_tower": 410,
+      "posthoc_auroc_values": [
+        0.8116475343704224,
+        0.8090357780456543,
+        0.7936830520629883
+      ],
+      "posthoc_retention_mean": 0.9998072981834412,
+      "posthoc_retention_std": 0.00034044301719404757,
+      "sparsity": 0.20000000298023224
+    },
+    {
+      "finetuned_auroc_values": [
+        0.786871612071991,
+        0.8070934414863586,
+        0.813537061214447
+      ],
+      "finetuned_retention_mean": 0.9971726536750793,
+      "finetuned_retention_std": 0.022751636803150177,
+      "neurons_per_tower": 384,
+      "posthoc_auroc_values": [
+        0.8123357892036438,
+        0.8085910677909851,
+        0.7932108640670776
+      ],
+      "posthoc_retention_mean": 0.9997082352638245,
+      "posthoc_retention_std": 0.0005071234190836549,
+      "sparsity": 0.25
+    },
+    {
+      "finetuned_auroc_values": [
+        0.7784426808357239,
+        0.8011615872383118,
+        0.810593843460083
+      ],
+      "finetuned_retention_mean": 0.990032434463501,
+      "finetuned_retention_std": 0.0254727303981781,
+      "neurons_per_tower": 358,
+      "posthoc_auroc_values": [
+        0.8117659687995911,
+        0.8081281185150146,
+        0.7925535440444946
+      ],
+      "posthoc_retention_mean": 0.9990076422691345,
+      "posthoc_retention_std": 0.0005678579909726977,
+      "sparsity": 0.30000001192092896
+    },
+    {
+      "finetuned_auroc_values": [
+        0.8154540061950684,
+        0.8057194352149963,
+        0.7925266623497009
+      ],
+      "finetuned_retention_mean": 0.9995175004005432,
+      "finetuned_retention_std": 0.0033875650260597467,
+      "neurons_per_tower": 307,
+      "posthoc_auroc_values": [
+        0.8110834360122681,
+        0.8082303404808044,
+        0.7922729253768921
+      ],
+      "posthoc_retention_mean": 0.9986517429351807,
+      "posthoc_retention_std": 0.0005709663382731378,
+      "sparsity": 0.4000000059604645
+    },
+    {
+      "finetuned_auroc_values": [
+        0.7965869903564453,
+        0.8032305240631104,
+        0.8073659539222717
+      ],
+      "finetuned_retention_mean": 0.9969776272773743,
+      "finetuned_retention_std": 0.01494294498115778,
+      "neurons_per_tower": 256,
+      "posthoc_auroc_values": [
+        0.8103498220443726,
+        0.8071491122245789,
+        0.791430652141571
+      ],
+      "posthoc_retention_mean": 0.997551441192627,
+      "posthoc_retention_std": 0.0005060290568508208,
+      "sparsity": 0.5
+    },
+    {
+      "finetuned_auroc_values": [
+        0.8057072758674622,
+        0.8164786100387573,
+        0.7950782179832458
+      ],
+      "finetuned_retention_mean": 1.001022219657898,
+      "finetuned_retention_std": 0.007076057139784098,
+      "neurons_per_tower": 205,
+      "posthoc_auroc_values": [
+        0.8110696077346802,
+        0.805649995803833,
+        0.7894067168235779
+      ],
+      "posthoc_retention_mean": 0.9963793754577637,
+      "posthoc_retention_std": 0.001838103518821299,
+      "sparsity": 0.6000000238418579
+    },
+    {
+      "finetuned_auroc_values": [
+        0.8073505759239197,
+        0.802894115447998,
+        0.7851952314376831
+      ],
+      "finetuned_retention_mean": 0.9919488430023193,
+      "finetuned_retention_std": 0.0021847642492502928,
+      "neurons_per_tower": 154,
+      "posthoc_auroc_values": [
+        0.8056384921073914,
+        0.8041279911994934,
+        0.7872134447097778
+      ],
+      "posthoc_retention_mean": 0.9926019310951233,
+      "posthoc_retention_std": 0.001156716956757009,
+      "sparsity": 0.699999988079071
+    },
+    {
+      "finetuned_auroc_values": [
+        0.8099525570869446,
+        0.8112120628356934,
+        0.7991623282432556
+      ],
+      "finetuned_retention_mean": 1.0023088455200195,
+      "finetuned_retention_std": 0.0037799575366079807,
+      "neurons_per_tower": 102,
+      "posthoc_auroc_values": [
+        0.7898253798484802,
+        0.79798424243927,
+        0.7874666452407837
+      ],
+      "posthoc_retention_mean": 0.983685314655304,
+      "posthoc_retention_std": 0.008123558014631271,
+      "sparsity": 0.800000011920929
+    },
+    {
+      "finetuned_auroc_values": [
+        0.8160577416419983,
+        0.8098759651184082,
+        0.8029803037643433
+      ],
+      "finetuned_retention_mean": 1.0058672428131104,
+      "finetuned_retention_std": 0.004167296923696995,
+      "neurons_per_tower": 51,
+      "posthoc_auroc_values": [
+        0.7772371768951416,
+        0.8031250834465027,
+        0.7806053757667542
+      ],
+      "posthoc_retention_mean": 0.9777562618255615,
+      "posthoc_retention_std": 0.015140374191105366,
+      "sparsity": 0.8999999761581421
+    }
+  ],
+  "seeds": [
+    42,
+    123,
+    456
+  ]
+}

@@ -1,6 +1,7 @@
 pub mod nn;
 pub mod hybrid_embeddings;
 pub mod cross_encoder;
+pub mod cross_encoder_no_product;
 
 pub use nn::{
     LinearLayer, Dropout,
