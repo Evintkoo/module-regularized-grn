@@ -87,9 +87,10 @@ sensitive to class imbalance than the cross-encoder's MLP scoring?
 (3)~Does the trained two-tower actually utilize its nominal hidden-layer
 capacity, or is much of it redundant?
 
-This paper makes three contributions:
+This paper makes three contributions, each addressing one of the open
+questions above:
 \begin{itemize}
-\item \textbf{C1:} A parameter-matched comparison (5.58M parameters each)
+\item \textbf{C1 (architectural comparison):} A parameter-matched comparison (5.58M parameters each)
   of two-tower and cross-encoder MLPs on human brain snRNA-seq data under
   both balanced (1:1) and moderately imbalanced (5:1) negative-to-positive
   sampling ratios, including an ablation of the cross-encoder without its
@@ -99,12 +100,12 @@ This paper makes three contributions:
   two-tower, attributing $\approx$95\% of the 10.8-point gap to joint encoding
   and $\approx$5\% to the element-wise product term
   (see Section~\ref{ssec:ablation}).
-\item \textbf{C2:} Demonstration that the two-tower degrades by 10.1~AUROC
+\item \textbf{C2 (imbalance robustness):} Demonstration that the two-tower degrades by 10.1~AUROC
   points under moderately imbalanced (5:1) negative sampling
   ($t(4.25)=4.06$, $p=0.014$) while the cross-encoder AUROC is stable (F1
   degrades for both architectures); the true TF--gene imbalance is
   $\approx$376:1 and constitutes an open question.
-\item \textbf{C3:} A structured neuron pruning analysis across three random
+\item \textbf{C3 (representational redundancy):} A structured neuron pruning analysis across three random
   seeds showing that post-hoc AUROC retention is $\geq 0.997$ (mean across
   seeds) up to 60\% sparsity for the two-tower, declining to 0.978 at 90\%
   sparsity. The same protocol applied to the cross-encoder shows post-hoc
@@ -1009,7 +1010,7 @@ of the TF and the 11-dimensional profile of the gene are concatenated to form a
 22-dimensional input.
 
 Table~\ref{tab:baseline} presents the results. A gradient-boosted tree
-classifier achieves AUROC~0.587 and accuracy 55.4\%---barely above the
+classifier~\cite{chen2016} achieves AUROC~0.587 and accuracy 55.4\%---barely above the
 majority-class baseline (AUROC 0.500). These results reveal two important facts.
 First, the 22-dimensional expression features alone carry almost no predictive
 signal for this task; a random classifier achieves 50\% AUROC, and the best
@@ -1145,10 +1146,18 @@ The ablation experiment resolves the element-wise product confound
 ($\approx$95\% joint encoding, $\approx$5\% product), but the no-product
 cross-encoder has $\approx$4.8\% fewer parameters (5.32M vs.\ 5.58M), a
 residual confound. The learning rate $\eta = 0.001$ was chosen for
-cross-encoder stability rather than from per-architecture grid search; the
-remaining gap at optimal temperature ($\tau=1.0$, AUROC $=0.8111$) is still
-9.1~points. Independent per-architecture learning-rate tuning remains an
-open question.
+cross-encoder stability rather than from per-architecture grid search;
+independent per-architecture tuning remains an open question.
+As a partial robustness check, an earlier two-tower training run at
+$\eta = 0.005$---the learning rate found optimal for the two-tower in
+preliminary search---achieved mean AUROC $\approx 0.810$, yielding a gap
+of approximately 9.3~AUROC points below the cross-encoder at
+$\eta = 0.001$. This is consistent with the 10.8-point gap in the
+controlled LR-matched comparison, suggesting the architectural advantage
+is not explained by the specific learning rate chosen for the two-tower.
+The temperature grid search (Section~\ref{ssec:tempsearch}) further
+confirms that even at the best-performing temperature ($\tau=1.0$, AUROC
+$=0.8111$), the gap to the cross-encoder is 9.1~points.
 
 \emph{Evaluation protocol and class imbalance.}
 AUPRC, AUROC, accuracy, and macro F1 are reported; ROC and PR curves for all
@@ -1186,13 +1195,6 @@ uses a single seed (seed=42), limiting direct variance comparison.
 The cross-encoder fine-tuning results are affected by a fresh-Adam
 disruption artifact (see Section~\ref{ssec:h3_ce}); post-hoc retention
 values are the primary comparison metric.
-
-\emph{Implementation.}
-All models were implemented in Rust without a reference framework.
-Correctness is supported by: (1) training loss decreases monotonically from
-$\approx$0.69 to $<$0.40; (2) gradient norms are well-behaved; (3) AUROC
-improves monotonically from $\approx$0.5 at initialization.
-No independent benchmark replication is provided.
 
 \textbf{Future directions.} Three extensions are directly motivated by these
 results. First, an InfoNCE-trained two-tower~\cite{oord2018}, where the
