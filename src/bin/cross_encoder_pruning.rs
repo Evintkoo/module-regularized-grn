@@ -401,8 +401,8 @@ fn main() -> Result<()> {
     let epochs           = 60usize;
     let patience         = 10usize;
     let seed             = 42u64;
-    let fine_tune_epochs = 10usize;
-    let fine_tune_lr     = 0.001f32;
+    let fine_tune_epochs = 20usize;    // increased: fresh Adam needs more steps to stabilize
+    let fine_tune_lr     = 0.0002f32;  // reduced 5×: CE joint features are sensitive to large initial Adam steps
 
     // ── Phase 1: Train baseline ───────────────────────────────────────────────
     println!("\n=== Phase 1: Training baseline (seed={}) ===", seed);

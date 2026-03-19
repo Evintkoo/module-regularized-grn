@@ -6,49 +6,51 @@
 \usepackage{graphicx}
 \usepackage{cite}
 \usepackage{microtype}   % improves justification and reduces overfull hboxes
+\usepackage{url}
 
 \begin{document}
 
-\title{Modular versus Monolithic Neural Architectures for Gene Regulatory
-Network Inference: An Empirical Comparison Under Parameter-Matched Conditions}
+\title{Dual-Encoder versus Cross-Encoder Neural Architectures for Gene
+Regulatory Network Inference: An Empirical Comparison Under Parameter-Matched
+Conditions}
 
 \author{Evint Leovonzko%
-\thanks{E-mail: evint.koo@gmail.com.}}
+\thanks{E-mail: evint.koo@gmail.com. Independent researcher.
+Code: \protect\url{https://github.com/evintleovonzko/module-regularized-grn}.}}
 
 \maketitle
 
 \begin{abstract}
-Gene regulatory network (GRN) inference --- determining which transcription
-factors regulate which target genes from single-cell RNA-sequencing data --- is
-a core problem in computational biology. A fundamental architectural choice is
-whether to encode transcription factor (TF) and gene representations
-independently (two-tower/dual-encoder) or jointly (cross-encoder). We present
-a parameter-matched comparison of both architectures on a human brain
+Gene regulatory network (GRN) inference---determining which transcription factors
+regulate which target genes from single-cell RNA-sequencing data---is a core
+problem in computational biology. We present a parameter-matched comparison of
+dual-encoder (two-tower) and cross-encoder MLPs on a human brain
 single-nucleus RNA-seq dataset (39K TF--gene pairs, 5.58M parameters each)
 under balanced (1:1) and moderately imbalanced (5:1) negative-to-positive
-sampling ratios. The cross-encoder achieves an AUROC of 0.9040 versus 0.8097
-for the two-tower under balanced training --- a gap of 9.4 points consistent
-across five random seeds. A no-product cross-encoder ablation (input without
-element-wise embedding product) achieves AUROC 0.8923, attributing
-$\approx$88\% of the 9.4-point gap to joint encoding and $\approx$12\% to
+sampling ratios. The cross-encoder achieves AUROC 0.9025 versus 0.7941 for
+the two-tower under balanced training---a gap of 10.8 points consistent across
+five random seeds ($t(4)=27.08$, $p<0.0001$, Bonferroni-corrected
+$\alpha=0.017$, Cohen's $d=12.1$). A no-product cross-encoder ablation
+attributes $\approx$95\% of this gap to joint encoding and $\approx$5\% to
 the multiplicative interaction term. Under 5:1 negative sampling, the
-two-tower AUROC degrades by 6.6 points (0.8097~$\to$~0.7434) while the
-cross-encoder AUROC is stable (0.9040~$\to$~0.9150); both architectures
-exhibit AUROC and F1 degradation under imbalance, consistent with cosine
-similarity scoring being more sensitive to class imbalance than MLP-based
-scoring on this dataset. A structured neuron pruning analysis across three
-random seeds shows that post-hoc AUROC retention never falls below 99.96\% of
-baseline at any tested sparsity level (minimum at 10\% sparsity; retention
-equals or exceeds baseline at all higher sparsity levels), with 51 of 512
-neurons per tower sufficient to match baseline AUROC without fine-tuning.
-All findings are on a single human brain dataset and are qualified to that
-experimental context.
+two-tower AUROC degrades by 10.1 points while the cross-encoder remains
+stable; both architectures exhibit F1 degradation. Structured neuron pruning
+across three random seeds shows the two-tower maintains post-hoc AUROC
+retention $\geq 0.997$ up to 60\% sparsity, with mean retention falling to
+0.978 at 90\% sparsity; the cross-encoder shows comparable post-hoc stability
+through 70\% sparsity. Both architectures operate in a transductive setting
+(entity embeddings are learned from the training split and cannot generalize
+to unseen TFs or genes), and the evaluation task measures reconstruction of
+curated regulatory databases rather than inference of novel regulation. All
+findings are on a single human brain dataset and are qualified to that
+experimental context; comparison to established GRN inference baselines
+(GENIE3, SCENIC) is a necessary next step.
 \end{abstract}
 
 \begin{IEEEkeywords}
-gene regulatory network inference, two-tower architecture, cross-encoder,
-dual-encoder, neural network pruning, single-cell RNA-seq, representation
-learning, link prediction, class imbalance
+gene regulatory network inference, dual-encoder, two-tower architecture, cross-encoder,
+neural network pruning, single-cell RNA-seq, representation
+learning, link prediction, class imbalance, transductive learning
 \end{IEEEkeywords}
 
 % ── I. INTRODUCTION ──────────────────────────────────────────────────────────
@@ -66,17 +68,17 @@ TF--gene pair and their expression profiles, predict whether a regulatory
 relationship exists~\cite{aibar2017,huynh2010}.
 
 A central architectural question in link prediction is whether entity
-representations should be computed independently (a \emph{two-tower} or
-dual-encoder model~\cite{huang2013,bromley1993}) or jointly (a
+representations should be computed independently (a \emph{dual-encoder} or
+two-tower model~\cite{huang2013,bromley1993}) or jointly (a
 \emph{cross-encoder}~\cite{nogueira2019,humeau2020}). Two-tower models score
 interactions via cosine similarity of independently computed encodings,
 enabling efficient inference at scale. Cross-encoders process pairs jointly,
 allowing arbitrary interaction features to be learned before scoring. In
 information retrieval, cross-encoders consistently outperform two-tower models
 when precise ranking quality is needed~\cite{nogueira2019,humeau2020}, but
-whether this advantage holds in computational biology --- where entities have
-distinct biological identities and the regulatory signal is low-dimensional ---
-has not been established under controlled, parameter-matched conditions.
+whether this advantage holds in computational biology---where entities have
+distinct biological identities and the regulatory signal is low-dimensional---has
+not been established under controlled, parameter-matched conditions.
 
 Three open questions motivate this work: (1)~Does a cross-encoder achieve
 higher discriminative AUROC than a parameter-matched two-tower for TF--gene
@@ -93,22 +95,22 @@ This paper makes three contributions:
   sampling ratios, including an ablation of the cross-encoder without its
   element-wise interaction term. The ablation isolates the contribution of
   joint encoding per se: the no-product cross-encoder achieves mean AUROC
-  0.8923 (1:1) versus 0.9040 for the full cross-encoder and 0.8097 for the
-  two-tower, attributing $\approx$88\% of the 9.4-point gap to joint encoding
-  and $\approx$12\% to the element-wise product term
+  0.8972 (1:1) versus 0.9025 for the full cross-encoder and 0.7941 for the
+  two-tower, attributing $\approx$95\% of the 10.8-point gap to joint encoding
+  and $\approx$5\% to the element-wise product term
   (see Section~\ref{ssec:ablation}).
-\item \textbf{C2:} Demonstration that the two-tower degrades by 6.6~AUROC
+\item \textbf{C2:} Demonstration that the two-tower degrades by 10.1~AUROC
   points under moderately imbalanced (5:1) negative sampling
-  ($t(5.15)=8.98$, $p<0.001$) while the cross-encoder AUROC is stable (F1
+  ($t(4.25)=4.06$, $p=0.014$) while the cross-encoder AUROC is stable (F1
   degrades for both architectures); the true TF--gene imbalance is
   $\approx$376:1 and constitutes an open question.
 \item \textbf{C3:} A structured neuron pruning analysis across three random
-  seeds showing that post-hoc AUROC retention is $\geq 0.9996$ (mean across
-  seeds) at all sparsity levels up to 90\% (minimum at 10\% sparsity;
-  retention improves at higher sparsity), consistent with the hypothesis that
-  the two-tower underutilizes its hidden-layer parameter budget. The same
-  protocol applied to the cross-encoder tests whether this underutilization
-  is specific to cosine similarity scoring.
+  seeds showing that post-hoc AUROC retention is $\geq 0.997$ (mean across
+  seeds) up to 60\% sparsity for the two-tower, declining to 0.978 at 90\%
+  sparsity. The same protocol applied to the cross-encoder shows post-hoc
+  retention $\geq 0.999$ through 70\% sparsity, dropping to 0.987 at 90\%,
+  demonstrating that representational redundancy is not exclusive to cosine
+  similarity scoring.
 \end{itemize}
 
 The remainder of this paper is organized as follows.
@@ -137,9 +139,21 @@ space of possible regulatory interactions.
 Machine learning approaches treat the problem as binary classification over
 TF--gene pairs. Early methods such as GENIE3~\cite{huynh2010} used random
 forest feature importance to rank TF--gene interactions. SCENIC~\cite{aibar2017}
-extended this with cis-regulatory motif analysis. More recent deep learning
-approaches learn representations of TFs and genes directly from expression
-profiles to score candidate edges.
+extended this with cis-regulatory motif analysis. GRNBoost2~\cite{moerman2019}
+improved upon GENIE3 with gradient boosting, achieving substantially faster
+runtimes with comparable accuracy. Information-theoretic methods such as
+PIDC~\cite{chan2017} exploit multivariate mutual information to capture
+higher-order regulatory dependencies that pairwise correlation measures miss.
+More recent deep learning approaches learn representations of TFs and genes
+directly from expression profiles to score candidate edges.
+
+The scale of the problem is biologically daunting: the human genome encodes
+approximately 1,600 transcription factors~\cite{lambert2018}, each potentially
+regulating hundreds to thousands of target genes. Exhaustive experimental
+characterization is infeasible, and curated databases cover only a small
+fraction of the regulatory landscape---making the quality of negative labels
+a persistent concern, since pairs absent from databases may represent
+undiscovered regulatory relationships rather than true negatives.
 
 \subsection{Two-Tower (Dual-Encoder) Architectures}
 
@@ -148,7 +162,12 @@ Semantic Model (DSSM)~\cite{huang2013}, where separate networks encode query
 and document into a shared embedding space and relevance is scored by cosine
 similarity. This enables efficient large-scale retrieval: all entity
 embeddings can be pre-computed and indexed, reducing per-query cost from
-$O(Nd)$ for an MLP to $O(d)$ where $d$ is the embedding dimension.
+$O(Nd)$ for an MLP to $O(d)$ where $d$ is the embedding dimension. Dense
+Passage Retrieval (DPR)~\cite{karpukhin2020} demonstrated the practical power
+of this approach at scale: pre-computed passage embeddings indexed with
+approximate nearest-neighbor search enable millisecond-latency retrieval over
+millions of documents, a property highly relevant for genome-scale GRN
+inference where the TF$\times$gene product space can reach $10^8$ candidate pairs.
 
 Siamese networks~\cite{bromley1993} represent the closely related case where
 the two towers share weights. In the GRN setting, TF and gene encoders are
@@ -174,7 +193,14 @@ at inference time. Humeau et al.~\cite{humeau2020} further characterized this
 trade-off in Poly-encoders, and Khattab and Zaharia~\cite{khattab2020}
 explored late interaction in ColBERT as a hybrid approach. These works
 collectively establish that joint encoding is more expressive than factorized
-encoding.
+encoding. In natural language processing, BERT~\cite{devlin2019} is the
+dominant cross-encoder backbone: its transformer self-attention mechanism
+allows every token in the query to attend to every token in the document
+before the scoring layer, achieving deep pairwise interaction at the cost of
+$O(N^2)$ per-pair computation. The MLP cross-encoder used in this work adopts
+the same inductive bias---joint input processing before scoring---without
+the quadratic attention cost, which is tractable for fixed-length embedding
+inputs.
 
 The element-wise product $\mathbf{a} \odot \mathbf{b}$ of two embeddings is
 a standard feature engineering technique that provides a direct path for
@@ -187,6 +213,11 @@ Neural network pruning removes parameters from a trained network to reduce
 model size or inference cost while preserving performance. Unstructured pruning
 removes individual weights~\cite{han2015}; structured pruning removes entire
 neurons or filters, producing actual speedups without sparse-matrix libraries.
+The earliest principled pruning criterion, Optimal Brain Damage~\cite{lecun1990},
+used second-order Taylor expansions to identify and remove low-saliency
+weights; this saliency-based perspective underpins many modern importance
+scores including the activation-frequency and weight-magnitude criteria used
+in this work.
 
 Han et al.~\cite{han2015} demonstrated that large networks tolerate removal
 of 80--90\% of weights with minimal accuracy loss, suggesting that trained
@@ -194,6 +225,11 @@ networks are highly over-parameterized. The Lottery Ticket
 Hypothesis~\cite{frankle2019} further showed that sparse sub-networks exist
 within trained networks that can be trained in isolation to match the full
 network, implying that useful representational capacity is localized.
+A comprehensive survey of pruning methodology~\cite{blalock2020} found that
+reported results across the literature are difficult to compare due to
+inconsistencies in baselines, fine-tuning budgets, and sparsity definitions;
+it recommends reporting both immediate post-pruning and fine-tuned
+performance at each sparsity level---a convention this paper follows.
 
 % ── III. METHODS ─────────────────────────────────────────────────────────────
 \section{Methods}
@@ -203,10 +239,15 @@ network, implying that useful representational capacity is localized.
 \label{ssec:data}
 
 Gene expression data were obtained from a human brain single-nucleus RNA-seq
-dataset in H5AD format. Cell-type-level expression profiles were summarized to
+dataset (CellxGene Census accession \texttt{fe1a73ab-a203-45fd-84e9-0f7fd19efcbd};
+human, \textit{Homo sapiens}, brain tissue).
+Cell-type-level expression profiles were summarized to
 11 cell-type dimensions representing mean expression across major brain cell
 types (neurons, glia, oligodendrocytes, microglia, endothelial cells, and
-subtypes thereof).
+subtypes thereof).  Only 2{,}000 highly variable genes were retained after
+preprocessing; expression coverage for the 1{,}164 TFs and 7{,}664 genes
+used in the model is 10.7\% and 14.6\%, respectively, with all remaining
+entities assigned a zero expression vector.
 
 Prior regulatory knowledge was sourced from merged DoRothEA~\cite{garcia2019}
 and TRRUST~\cite{han2018} databases, yielding approximately 29,000 TF--gene
@@ -220,7 +261,40 @@ fixed random seed (42) applied once before any model training, ensuring that
 all model comparisons use identical data splits (test set: 7,109 examples).
 Note that the space of possible TF--gene pairs is $1{,}164 \times 7{,}664
 \approx 8.9$~million; the true non-edge to edge ratio is therefore
-approximately 376:1, far more severe than any ratio tested here.
+approximately 376:1, far more severe than any ratio tested here. The human
+genome encodes approximately 1,600 transcription factors in total~\cite{lambert2018};
+the 1,164 TFs retained here represent those for which both prior-knowledge
+annotations and expression data are available in this dataset.
+
+\textbf{Transductive learning setting.}
+Both architectures learn a dense embedding vector for each of the 1,164 TFs
+and 7,664 genes encountered during training. These embedding parameters
+(4.52M of the total 5.58M) are model weights that are only defined for
+entities present in the training vocabulary. The evaluation therefore
+operates in a \emph{transductive} setting: test-set TF--gene pairs involve
+the same TFs and genes seen during training, and the model cannot produce
+predictions for entities outside its training vocabulary without retraining.
+This is a fundamental limitation for practical deployment in new tissues or
+organisms. Inductive extensions (e.g., using only expression features or
+pre-trained biological language model embeddings as fixed inputs) would be
+required to generalize to novel entities.
+
+\textbf{Task framing and label quality.}
+Positive labels are sourced exclusively from DoRothEA and TRRUST; negative
+labels are sampled from the complement of those databases. The
+evaluation therefore measures how well a model \emph{reconstructs the
+curated database} from expression features and learned entity embeddings,
+not whether it can discover novel regulatory relationships. Database coverage
+is sparse: only $\approx$0.27\% of the 8.9~million possible TF--gene pairs
+are annotated as positive. Many true regulatory relationships are absent from
+these databases (false negatives), and the contamination rate is not
+quantified. As an upper-bound estimate of expression-feature informativeness
+for this task, a gradient-boosted tree classifier using only the 22-dimensional
+expression-feature representation (11-dim cell-type profiles per entity)
+achieves AUROC~0.587 on the same test split---barely above chance---confirming
+that the neural models' higher AUROC is driven primarily by the learned entity
+embeddings encoding database membership structure, not by expression-based
+regulatory signal.
 
 \subsection{Model Architectures}
 \label{ssec:arch}
@@ -251,7 +325,7 @@ comparison.
 Both architectures were implemented from scratch in pure Rust using the ndarray
 library, without dependence on PyTorch, TensorFlow, or any external machine
 learning framework. Fig.~\ref{fig:arch} illustrates the two architectures side
-by side.
+by side. Code is available at \url{https://github.com/evintleovonzko/module-regularized-grn}.
 
 \textbf{Note on comparability.} The cross-encoder input includes an
 element-wise product term ($\mathbf{e}_{TF} \odot \mathbf{e}_{g}$) that
@@ -259,10 +333,14 @@ encodes pairwise multiplicative interactions as an inductive bias absent from
 the two-tower. To isolate the contribution of joint encoding from this
 additional feature, we trained a \emph{no-product cross-encoder} ablation
 (input: $[\mathbf{e}_{TF} \,|\, \mathbf{e}_g \,|\, \mathbf{x}_{TF} \,|\,
-\mathbf{x}_g]$, $2d + 2m$ dimensions) under identical conditions. Results are
+\mathbf{x}_g]$, $2d + 2m$ dimensions) under identical conditions. The
+no-product cross-encoder has 5.32M parameters---slightly fewer than the
+full CE and two-tower (5.58M each) due to the reduced fc1 input
+dimension; this modest parameter difference ($\approx$4.8\%) is noted as a
+residual confound in the attribution. Results are
 reported in Section~\ref{ssec:ablation}; the element-wise product contributes
-$\approx$12\% of the total AUROC gap, with joint encoding accounting for the
-remaining $\approx$88\%.
+$\approx$5\% of the total AUROC gap, with joint encoding accounting for the
+remaining $\approx$95\%.
 
 \begin{figure}[!t]
   \centering
@@ -283,18 +361,20 @@ clipping at a global norm of 5.0. The batch size was 256 examples. The
 learning rate $\eta = 0.001$ was selected based on comparative stability
 across architectures during preliminary training runs; $\eta = 0.005$ produced
 faster but less stable convergence for the cross-encoder. To ensure comparable
-optimization conditions both architectures were trained at the lower value.
+optimization conditions, both architectures were trained at the lower value.
 Note that the optimal learning rate for each architecture independently was
 not determined via grid search; this choice and its implications for the
 architectural comparison are discussed in Section~\ref{sec:discussion}.
 Training ran for a maximum of 60 epochs with early stopping: validation
 accuracy was evaluated every 10 epochs, and training was halted if no
 improvement was observed over 10 consecutive evaluations. The loss function was
-binary cross-entropy, computed using a numerically stable gradient formulation
-$(p - l) / N_\text{batch}$ rather than the standard
-$\partial \text{BCE} / \partial \text{logit}$, which avoids gradient blow-up
-for highly confident predictions. All weights were initialized with normal
-distribution $\mathcal{N}(0, 0.01)$.
+binary cross-entropy with gradient computed in logit space, $\partial
+\mathrm{BCE} / \partial \mathrm{logit} = (p - l) / N_\text{batch}$, which is
+numerically stable. All weights were initialized as follows: fully connected layer weights use
+He initialization ($\sigma = \sqrt{2/\text{fan\_in}}$ with uniform sampling
+over $[-\sigma, \sigma]$, matching the ReLU activation); biases are initialized
+to zero; embedding tables use $\mathcal{N}(0, 0.01)$, a small-variance normal
+appropriate for embedding lookup tables.
 
 \subsection{Evaluation}
 \label{ssec:eval}
@@ -306,11 +386,23 @@ F1 score (computed at the same fixed threshold of 0.5), and area under the
 precision-recall curve (AUPRC). Each
 model configuration was trained with five random seeds (42, 123, 456, 789,
 1337), and results are reported as mean $\pm$ standard deviation across seeds.
-Bootstrap 95\% confidence intervals for accuracy were computed from
-$n = 1{,}000$ resamples of the test set predictions from the best-performing
-seed. All metrics are reported to four decimal places for consistency. An
+Bootstrap 95\% confidence intervals for accuracy were computed via 1{,}000
+stratified resamples of the test set, applied independently to all five seeds
+and reported as the mean of the per-seed interval bounds; this characterizes
+architectural-level uncertainty rather than single-seed sampling variance.
+Effect sizes are reported as Cohen's $d$ computed from the per-seed
+distribution. All metrics are reported to four decimal places for consistency. An
 ensemble prediction was also computed as the mean prediction across all five
-seeds, providing an upper-bound accuracy estimate.
+seeds, providing an upper-bound accuracy and AUROC estimate.
+
+\textbf{Multiple-testing correction.}
+Three primary hypothesis tests are reported (C1 paired $t$-test, C2 Welch
+$t$-test, and the no-product ablation $t$-test). Bonferroni-corrected
+significance threshold is $\alpha_{\text{adj}} = 0.05/3 \approx 0.017$.
+All three reported tests meet this threshold: C1 ($p<0.0001$), C2 ($p=0.014$,
+marginal), and ablation ($p=0.015$, marginal). Readers should interpret C2 and
+the ablation $t$-test as nominally significant under Bonferroni correction;
+replication on additional datasets is required to confirm these effects.
 
 \subsection{Negative Sampling}
 \label{ssec:negsampling}
@@ -330,15 +422,14 @@ tractable intermediate step; results under severe imbalance
 \subsection{Neuron Pruning Protocol}
 \label{ssec:pruning}
 
-To assess representational redundancy in the trained two-tower model, a
-structured neuron pruning experiment was conducted across three random seeds
-(42, 123, 456).\footnote{The pruning baseline AUROC values
-(Table~\ref{tab:pruning}) differ slightly from the per-seed values in
+To assess representational redundancy in trained models, a structured neuron
+pruning experiment was conducted across three random seeds (42, 123, 456) for
+the two-tower and one seed (42) for the cross-encoder.\footnote{The pruning
+baseline AUROC values differ slightly from the per-seed values in
 Table~\ref{tab:perseed} because the pruning experiment re-trains each model
 independently from the same seed rather than loading a saved checkpoint from
-the main evaluation run. Both experiments use the identical AUROC computation
-(sorted-score trapezoidal method). Stochastic variation across training runs
-accounts for the small discrepancy; the pruning table and main tables use
+the main evaluation run. Stochastic variation across training runs accounts
+for the small discrepancy; the pruning table and main tables use
 self-consistent baselines within their respective contexts.}
 Neuron importance was scored for each of the 512 output neurons
 in each tower's first fully connected layer (fc1) as:
@@ -401,25 +492,29 @@ and 456 at the 1:1 ratio, and mean AUROC $\pm$ std was recorded.
 Table~\ref{tab:balanced} presents the performance of both architectures at the
 1:1 negative sampling ratio across five random seeds.
 
-The cross-encoder achieves an AUROC of 0.9040, compared to 0.8097 for the
-two-tower --- a difference of 9.43 AUROC points. This gap is consistent across
+The cross-encoder achieves an AUROC of 0.9025, compared to 0.7941 for the
+two-tower---a difference of 10.84 AUROC points. This gap is consistent across
 all five seeds (Table~\ref{tab:perseed}) and is the primary evidence supporting
 C1.
 
-Bootstrap 95\% confidence intervals for accuracy are: Cross-Encoder
-[0.8178,~0.8357], Two-Tower [0.8062,~0.8236]. These intervals partially overlap,
-indicating that accuracy alone does not cleanly separate the two models.
-However, the AUROC gap of 9.4 points is far more decisive: AUROC measures the
-model's ability to rank positive edges above negative edges across all possible
-decision thresholds, and the cross-encoder substantially outperforms the
-two-tower on this metric. A paired $t$-test on per-seed AUROC differences
-confirms statistical significance: mean difference $= 0.0944$,
-$t(4) = 24.24$, $p < 0.0001$ (two-tailed).
+Bootstrap 95\% confidence intervals for accuracy (computed as the mean of
+per-seed interval bounds across all five seeds) are: Cross-Encoder
+[82.75\%,~84.43\%], Two-Tower [77.66\%,~79.58\%]. These intervals do not
+overlap, cleanly separating the two models in terms of accuracy. The AUROC
+gap is larger and more decisive: AUROC measures the model's ability to rank
+positive edges above negative edges across all possible decision thresholds,
+and the cross-encoder substantially outperforms the two-tower on this metric.
+A paired $t$-test on per-seed AUROC differences confirms strong statistical
+significance: mean difference $= 0.1084$,
+$t(4) = 27.08$, $p < 0.0001$ (two-tailed, Bonferroni-corrected
+$\alpha = 0.017$), Cohen's $d = 12.1$.
 
-The cross-encoder also exhibits lower variance across seeds (std = 0.0048
-vs.\ 0.0059), suggesting more stable optimization. Ensemble accuracy narrows
-the gap to 0.55 percentage points (84.02\% vs.\ 83.47\%), consistent with
-ensemble averaging reducing the effect of seed-specific variance.
+The cross-encoder also exhibits markedly lower variance across seeds
+(std $= 0.0007$ vs.\ $0.0096$), suggesting considerably more stable
+optimization. Ensemble accuracy narrows the raw advantage
+(84.43\% vs.\ 82.49\%); ensemble AUROC shows a similar pattern
+(0.9114 vs.\ 0.8778), consistent with ensemble averaging reducing the effect
+of seed-specific variance.
 Fig.~\ref{fig:auroc} summarizes the AUROC results for all four experimental
 conditions.
 
@@ -434,25 +529,24 @@ cannot represent such features: its representational bottleneck enforces that
 all information relevant to scoring must be independently extractable from TF
 and gene inputs before any interaction occurs.
 
-The accuracy gap is smaller than the AUROC gap because accuracy is measured at
-a fixed threshold of 0.5, and both models can achieve reasonable accuracy by
-calibrating this threshold to the positive-negative class balance. AUROC, by
-integrating over all thresholds, provides a more sensitive measure of ranking
-quality and is the appropriate metric for comparing models that differ in their
-confidence calibration. These results support C1.
+The AUROC gap is more pronounced than the accuracy gap because accuracy is
+measured at a fixed threshold of 0.5, while AUROC integrates over all
+thresholds and provides a more sensitive measure of ranking quality---the
+appropriate metric for comparing models that differ in their confidence
+calibration. These results support C1.
 
 \begin{table}[!t]
   \caption{Performance at 1:1 Negative Sampling Ratio (Mean $\pm$ Std, 5 Seeds).
-    Ensemble column reports ensemble accuracy / AUROC.}
+    Ensemble column reports ensemble accuracy / AUROC / AUPRC.}
   \label{tab:balanced}
   \centering
   \resizebox{\columnwidth}{!}{%
-  \begin{tabular}{lccccc}
+  \begin{tabular}{lcccccc}
     \hline
-    Model & Accuracy & AUROC & AUPRC & F1 & Ensemble Acc / AUROC \\
+    Model & Accuracy & AUROC & AUPRC & F1 & Params & Ensemble Acc / AUROC / AUPRC \\
     \hline
-    Two-Tower     & $80.90 \pm 0.59$\% & 0.8097          & \textrm{TBD} & 0.8073 & 83.47\% / \textrm{TBD} \\
-    Cross-Encoder & $83.03 \pm 0.48$\% & \textbf{0.9040} & \textrm{TBD} & 0.8310 & 84.02\% / \textrm{TBD} \\
+    Two-Tower     & $79.42 \pm 0.87$\% & 0.7941 & 0.7501 & 0.7962 & 5.58M & 82.49\% / 0.8778 / 0.8572 \\
+    Cross-Encoder & $83.46 \pm 0.19$\% & \textbf{0.9025} & \textbf{0.8914} & 0.8338 & 5.58M & 84.43\% / 0.9114 / 0.9058 \\
     \hline
   \end{tabular}}
 \end{table}
@@ -467,13 +561,13 @@ confidence calibration. These results support C1.
     \hline
     Seed & Two-Tower & CE (full) & CE (no product) \\
     \hline
-    42   & 0.8093 & 0.9061 & 0.8910 \\
-    123  & 0.7987 & 0.9054 & 0.8875 \\
-    456  & 0.8159 & 0.9032 & 0.8911 \\
-    789  & 0.8113 & 0.9075 & 0.8976 \\
-    1337 & 0.8133 & 0.8980 & 0.8942 \\
+    42   & 0.7975 & 0.9030 & 0.8987 \\
+    123  & 0.7919 & 0.9022 & 0.8967 \\
+    456  & 0.7869 & 0.9021 & 0.8946 \\
+    789  & 0.8089 & 0.9035 & 0.8950 \\
+    1337 & 0.7851 & 0.9019 & 0.9009 \\
     \hline
-    Mean & 0.8097 & 0.9040 & 0.8923 \\
+    Mean & 0.7941 & 0.9025 & 0.8972 \\
     \hline
   \end{tabular}
 \end{table}
@@ -495,23 +589,34 @@ both negative sampling ratios, allowing direct comparison of the degradation
 incurred by each model when moving from balanced to moderately imbalanced
 training conditions.
 
-The two-tower AUROC degrades by 6.6 points under 5:1 sampling
-(0.8097~$\to$~0.7434), while the cross-encoder AUROC marginally improves by
-1.1 points (0.9040~$\to$~0.9150). The two-tower F1 collapses by 14.7 points
-(0.8073~$\to$~0.6598), indicating the model loses its ability to maintain
+The two-tower AUROC degrades by 10.1 points under 5:1 sampling
+(0.7941~$\to$~0.6930), while the cross-encoder AUROC marginally improves by
+1.0 point (0.9025~$\to$~0.9121). The two-tower F1 collapses by 23.3 points
+(0.7962~$\to$~0.5630), indicating the model loses its ability to maintain
 precision at adequate recall when negatives dominate training. Training variance
-for the two-tower increases 2.6$\times$ (std = 0.0059~$\to$~0.0154),
+for the two-tower increases 5.7$\times$ (std $= 0.0096~\to~0.0548$),
 reflecting substantially less stable optimization at the higher negative ratio.
 A Welch two-sample $t$-test on per-group AUROC confirms the significance of
-the two-tower degradation: $t(5.15) = 8.98$, $p < 0.001$ (two-tailed;
-Welch's unequal-variance form is appropriate given the 2.6$\times$ increase
-in variance under 5:1 sampling).\footnote{Welch--Satterthwaite effective
+the two-tower degradation: $t(4.25) = 4.06$, $p = 0.014$ (two-tailed,
+Bonferroni-corrected $\alpha = 0.017$; marginally significant under
+correction); Welch's unequal-variance form is appropriate given the
+5.7$\times$ increase in variance under 5:1
+sampling.\footnote{Welch--Satterthwaite effective
 degrees of freedom: $\nu = (s_1^2/n + s_2^2/n)^2 / [(s_1^2/n)^2/(n{-}1) +
-(s_2^2/n)^2/(n{-}1)]$ where $s_1^2 = 0.0059^2$, $s_2^2 = 0.0154^2$,
-$n = 5$, yielding $\nu \approx 5.2$.}
+(s_2^2/n)^2/(n{-}1)]$ where $s_1 = 0.0096$, $s_2 = 0.0548$,
+$n = 5$, yielding $\nu \approx 4.25$.}
+
+\textbf{Note on test-set distribution.}
+The 1:1 and 5:1 models are both evaluated on the same balanced (1:1) held-out
+test set: additional negatives for the 5:1 condition are added to the training
+set only. AUROC is threshold-independent and valid under this protocol;
+however, accuracy and F1 at the fixed 0.5 threshold are affected by the
+training-distribution shift, because models trained at 5:1 are miscalibrated
+relative to the balanced test prior. The AUROC values are therefore the
+primary basis for comparing the two conditions.
 
 The cross-encoder is not immune to imbalance effects: its F1 score degrades by
-4.9 points (0.8310~$\to$~0.7825) as recall is harder to maintain with a larger
+4.1 points (0.8338~$\to$~0.7929) as recall is harder to maintain with a larger
 negative class. However, its AUROC is unaffected, confirming that its
 discriminative capacity --- the ability to rank positive edges above negatives
 --- is preserved under the 5:1 imbalanced condition.
@@ -535,16 +640,16 @@ pair, allowing it to learn decision boundaries that are robust to changes in
 the class distribution during training.
 
 The marginal AUROC \emph{improvement} of the cross-encoder under 5:1 sampling
-(0.9040~$\to$~0.9150) warrants specific comment. An increased proportion of
+(0.9025~$\to$~0.9121) warrants specific comment. An increased proportion of
 negative training examples may act as a regularizer for the cross-encoder's
 MLP readout: the additional hard negatives sharpen the decision boundary and
 reduce false positives, improving ranking ability. This is consistent with
-the simultaneous F1 degradation (0.8310~$\to$~0.7825): the model's
-threshold-independent ranking improves slightly (AUROC gains 1.1~pts) while
-its threshold-dependent binary classification degrades (F1 falls 4.9~pts)
-because the optimal decision threshold shifts with the changed class prior.
-This interpretation is speculative; confirming it would require ablations that
-vary the class prior while holding out balanced test data.
+the simultaneous F1 degradation (0.8338~$\to$~0.7929): the model's
+threshold-independent ranking improves slightly while its threshold-dependent
+binary classification degrades because the optimal decision threshold shifts
+with the changed class prior. This interpretation is speculative; confirming
+it would require ablations that vary the class prior while holding out
+balanced test data.
 
 This result has direct practical implications. Curated regulatory databases
 such as DoRothEA and TRRUST cover at most a few percent of possible TF--gene
@@ -553,23 +658,41 @@ class imbalance far more severe than 5:1 (approximately 376:1 for the
 dataset used here). The cross-encoder's stability under the 5:1 condition
 --- and its further AUROC improvement --- suggests it is a more
 deployment-appropriate architecture; its behavior under true genome-scale
-imbalance remains to be established. These
-results support C2.
+imbalance remains to be established. These results support C2.
+
+\textbf{Connection to the imbalanced learning literature.} Class imbalance
+is a long-studied challenge in machine learning, and a rich body of
+remediation strategies exists~\cite{he2009}. Resampling approaches such as
+SMOTE~\cite{chawla2002} synthesize minority-class examples to re-balance the
+training distribution; modified loss functions such as focal loss~\cite{lin2017}
+down-weight easy negatives during training, focusing gradient updates on the
+hard examples that most influence the decision boundary. In our setting, the
+two-tower's degradation is qualitatively different from what SMOTE or focal
+loss typically target: the problem is not that individual hard negatives
+dominate the gradient, but that the marginal embedding geometry is distorted
+by the sheer mass of negatives at the representational level. Focal loss
+applied to the binary cross-entropy objective for the two-tower might
+partially alleviate symptom (biased threshold), but would not address the
+root cause (geometric compression of positive-pair embeddings). The
+cross-encoder's MLP readout, by contrast, can implicitly implement
+pair-adaptive weighting through its learned decision boundaries, which is
+functionally analogous to a sample-dependent loss reweighting---explaining
+its relative robustness without explicit imbalance correction.
 
 \begin{table}[!t]
   \caption{Performance Across Negative Sampling Ratios (Mean $\pm$ Std, 5 Seeds).
-    AUPRC values at 1:1 and 5:1 shown. F1 and Std refer to macro F1 and AUROC std.}
+    F1 and Std refer to macro F1 and AUROC std.}
   \label{tab:imbalance}
   \centering
   \resizebox{\columnwidth}{!}{%
-  \begin{tabular}{llccccc}
+  \begin{tabular}{llcccccc}
     \hline
     Model & Ratio & AUROC & $\Delta$AUROC & AUPRC & F1 & Std \\
     \hline
-    Two-Tower     & 1:1 & 0.8097 & \mbox{---}  & \textrm{TBD} & 0.8073 & 0.0059 \\
-    Two-Tower     & 5:1 & 0.7434 & $-6.6$~pts  & \textrm{TBD} & 0.6598 & 0.0154 \\
-    Cross-Encoder & 1:1 & 0.9040 & \mbox{---}  & \textrm{TBD} & 0.8310 & 0.0048 \\
-    Cross-Encoder & 5:1 & 0.9150 & $+1.1$~pts  & \textrm{TBD} & 0.7825 & 0.0074 \\
+    Two-Tower     & 1:1 & 0.7941 & \mbox{---}   & 0.7501 & 0.7962 & 0.0096 \\
+    Two-Tower     & 5:1 & 0.6930 & $-10.1$~pts  & 0.7467 & 0.5630 & 0.0548 \\
+    Cross-Encoder & 1:1 & 0.9025 & \mbox{---}   & 0.8914 & 0.8338 & 0.0007 \\
+    Cross-Encoder & 5:1 & 0.9121 & $+1.0$~pts   & 0.9143 & 0.7929 & 0.0054 \\
     \hline
   \end{tabular}}
 \end{table}
@@ -583,25 +706,36 @@ joint encoding per se or to the element-wise product interaction term
 cross-encoder variant whose input is
 $[\mathbf{e}_{TF} \,|\, \mathbf{e}_g \,|\, \mathbf{x}_{TF} \,|\, \mathbf{x}_g]$
 (input dimension $2d + 2m$ instead of $3d + 2m$). All other aspects of the
-architecture and training protocol are unchanged; the comparison is
-parameter-matched at 5.58M within each group.
+architecture and training protocol are unchanged.
 
 Table~\ref{tab:ablation} presents the results. The no-product cross-encoder
-achieves a mean AUROC of 0.8923 under balanced (1:1) training, compared to
-0.9040 for the full cross-encoder and 0.8097 for the two-tower. A paired
+achieves a mean AUROC of 0.8972 under balanced (1:1) training, compared to
+0.9025 for the full cross-encoder and 0.7941 for the two-tower. A paired
 $t$-test on per-seed AUROC differences between the no-product and full
 cross-encoder confirms a small but significant effect of the product term:
-mean difference $= 0.0118$, $t(4) = 4.89$, $p = 0.008$ (two-tailed).
+mean difference $= 0.0054$, $t(4) = 4.08$, $p = 0.015$ (two-tailed,
+Bonferroni-corrected $\alpha = 0.017$; marginally significant under
+correction), Cohen's $d = 1.82$. Note that the no-product cross-encoder has
+$\approx$5.32M parameters versus 5.58M for the full cross-encoder and
+two-tower; this $\approx$4.8\% parameter deficit is a residual confound in
+the attribution, and the 95\%/5\% split should be interpreted as an
+approximate upper bound on the joint-encoding contribution.
 
 \textbf{Interpretation.} The element-wise product term contributes
-$\approx$1.2~AUROC points (0.0117) of the total 9.4-point gap. Joint
+$\approx$0.53~AUROC points of the total 10.84-point gap. Joint
 encoding alone (no-product cross-encoder vs.\ two-tower) accounts for the
-remaining $\approx$8.3~points (88\% of the gap). This result substantially
+remaining $\approx$10.31~points (95.1\% of the gap). This result substantially
 strengthens C1: the cross-encoder's advantage over the two-tower is
-\emph{primarily} a consequence of joint input processing, not of the
+\emph{overwhelmingly} a consequence of joint input processing, not of the
 multiplicative inductive bias. The element-wise product provides a small
 additional benefit consistent with its role as a feature that amplifies
 co-active embedding dimensions~\cite{rendle2010}.
+
+Note that the 95\%/5\% attribution is an additive decomposition that assumes
+the product term's effect is approximately orthogonal to the joint-encoding
+effect. Because the product term can only be expressed in the presence of
+joint encoding, this decomposition should be interpreted as ``at least 95\%
+of the gap is attributable to joint encoding per se.''
 
 \begin{table}[!t]
   \caption{Ablation: Effect of Element-Wise Product Term on AUROC (1:1,
@@ -609,138 +743,121 @@ co-active embedding dimensions~\cite{rendle2010}.
   \label{tab:ablation}
   \centering
   \footnotesize
-  \begin{tabular}{@{}lcc@{}}
+  \begin{tabular}{@{}lccc@{}}
     \hline
     Model & AUROC & $\Delta$ vs.\ Two-Tower \\
     \hline
-    Two-Tower                    & 0.8097          & \mbox{---} \\
-    Cross-Enc.\ (no product)     & 0.8923          & $+$8.3~pts \\
-    Cross-Enc.\ (full, w/ prod.) & \textbf{0.9040} & $+$9.4~pts \\
+    Two-Tower                    & 0.7941          & \mbox{---} \\
+    Cross-Enc.\ (no product)     & 0.8972          & $+$10.3~pts \\
+    Cross-Enc.\ (full, w/ prod.) & \textbf{0.9025} & $+$10.8~pts \\
     \hline
-    \multicolumn{3}{@{}l@{}}{\scriptsize Product contribution: $+$1.2~pts (12\%)} \\
+    \multicolumn{3}{@{}l@{}}{\scriptsize Product: $+$0.5~pts (4.9\%); joint encoding: $+$10.3~pts (95.1\%)} \\
     \hline
   \end{tabular}
 \end{table}
 
-\subsection{Representational Redundancy via Neuron Pruning}
+\subsection{Representational Redundancy via Neuron Pruning (Two-Tower)}
 \label{ssec:h3}
 
 Table~\ref{tab:pruning} presents the post-hoc and fine-tuned AUROC retention
-across all 13 tested sparsity levels. Retention is defined as the ratio of
-pruned model AUROC to baseline AUROC (0.8015).
+across all 13 tested sparsity levels, with mean $\pm$ std across three seeds
+(42, 123, 456). Baseline AUROC is $0.8049 \pm 0.0079$ (mean across seeds).
 
-The post-hoc AUROC retention never falls below the 95\% retention threshold at
-any tested sparsity level. The maximum deviation below baseline is 0.04\% (at
-10\% sparsity, retention = 0.9996). Notably, post-hoc retention \emph{increases}
-above 1.0 at sparsity levels of 25\% and above, reaching a maximum of 1.0104
-at 80\% sparsity. This counterintuitive result indicates that removing
-low-importance neurons can \emph{improve} AUROC by reducing noise in the
-representation, a phenomenon consistent with overfitting in the original model.
+Post-hoc AUROC retention remains at or above 0.997 through 60\% sparsity, with
+minor degradation at higher sparsity levels: mean retention drops to
+$0.993 \pm 0.001$ at 70\%, $0.984 \pm 0.008$ at 80\%, and
+$0.978 \pm 0.015$ at 90\%. The relatively high standard deviation at 90\%
+sparsity (0.015) indicates seed-dependent sensitivity: some training runs
+retain nearly full performance at high sparsity while others degrade
+measurably. Post-hoc retention \emph{increases} marginally above 1.0 at
+several intermediate sparsity levels (10\%--60\%), consistent with removing
+low-importance neurons reducing noise in the representation.
 
 At 90\% sparsity, 51 neurons per tower are retained and the model size
-decreases from 5,581,824 to 4,626,632 parameters --- a reduction of 17.1\%,
-not 90\%, because the embedding tables ($\approx$4.52M parameters) are
-unchanged. The post-hoc AUROC is 0.8037 (retention 1.0027), matching the
-baseline within 0.02 AUROC points. After 10 epochs of fine-tuning at 90\%
-sparsity, AUROC rises to 0.8214 (retention 1.0248) --- the highest fine-tuned
-AUROC observed across all sparsity levels.
+decreases from 5,581,824 to approximately 4,627K parameters---a reduction of
+$\approx$17\%, not 90\%, because the embedding tables ($\approx$4.52M
+parameters, 81\% of total) are unchanged. The mean post-hoc AUROC at 90\%
+sparsity is 0.787, compared to baseline 0.805---a drop of 1.8 AUROC points.
+After 10 epochs of fine-tuning at 90\% sparsity, mean AUROC recovers to
+0.810 (retention 1.006), matching and marginally exceeding baseline.
 
-Fine-tuned results exhibit non-monotonic behavior: retention dips below 1.0 at
-several sparsity levels (15\%, 25\%, 50\%, 60\%, 80\%), reflecting the limited
-10-epoch fine-tuning budget rather than fundamental instability of the pruned
-models. Post-hoc results, which require no additional training, are
-monotonically stable or improving throughout. Figs.~\ref{fig:pruning}
-and~\ref{fig:scatter} visualize the sparsity-retention trade-off and the
-compression-AUROC relationship.
+Fine-tuned results exhibit non-monotonic behavior across sparsity levels,
+reflecting the limited 10-epoch fine-tuning budget. Post-hoc results are
+more stable, monotonically degrading only at $\geq 70$\% sparsity.
+Figs.~\ref{fig:pruning} and~\ref{fig:scatter} visualize the
+sparsity-retention trade-off and compression-AUROC relationship.
 
-\textbf{Interpretation.} The two-tower model does not utilize its full
-512-dimensional hidden capacity. With only 10\% of neurons retained (51 per
-tower), the model maintains full discriminative performance with no fine-tuning
-required. Three factors likely contribute to this redundancy.
+\textbf{Interpretation.} The two-tower model shows substantial representational
+redundancy: post-hoc retention remains $\geq 0.997$ at up to 60\% sparsity
+across all seeds, and 51 neurons per tower (10\% of capacity) are sufficient
+for fine-tuning to match baseline. Three factors plausibly contribute.
 
-First, the cosine similarity scoring objective \emph{may} constrain the useful
+First, the cosine similarity scoring objective may constrain the useful
 dimensionality of the representation. Since the regulatory score depends only
-on the \emph{direction} of the TF and gene encodings (not their magnitude),
-the effective number of degrees of freedom available to the objective is at
-most the number of dimensions needed to arrange $K$ directional clusters, which
-for the GRN problem may be far smaller than 512. This remains a hypothesis
-consistent with the pruning data rather than a proven mechanism; directly
-measuring the effective rank of the hidden representations would be needed to
-confirm it.
+on the \emph{direction} of the TF and gene encodings, the effective degrees of
+freedom available to the objective may be far fewer than 512. This remains a
+hypothesis consistent with the pruning data; directly measuring the effective
+rank of the hidden representations would be needed to confirm it.
 
-Second, the independently trained towers have no mechanism to prevent redundant
-feature learning across neurons within each tower. Without an orthogonality
-constraint, a diversity objective, or a bottleneck architecture, the optimizer
-may produce many neurons that encode similar directions in the embedding space,
-with each providing only marginal additional discriminative signal.
+Second, without an orthogonality constraint or diversity objective, the
+optimizer may produce neurons that encode similar directions in the embedding
+space, with each providing only marginal additional discriminative signal.
 
-Third, the regulatory signal itself is low-dimensional: TF--gene interactions
-are driven primarily by 11 cell-type expression features plus a few hundred
-biologically meaningful TF embedding dimensions, a much smaller effective input
-dimensionality than the nominal 523-dimensional input.
-
-This finding is \emph{consistent with} the C1 AUROC gap and offers a
-mechanistic hypothesis: if the two-tower cannot exploit its full 512-unit
-hidden capacity due to the geometric constraints of cosine similarity scoring,
-then a nominally parameter-matched two-tower may have substantially lower
-\emph{effective} capacity than a cross-encoder. The cross-encoder, whose MLP
-scoring function can utilize all weight dimensions through the nonlinear
-readout layer, is not subject to the same constraint. This interpretation
-does not establish causation: it is possible that both architectures
-under-utilize their hidden layers and the AUROC gap is driven primarily by
-the joint-encoding and element-wise product features of the cross-encoder
-rather than a capacity-utilization difference per se. Applying the same
-pruning protocol to the trained cross-encoder would directly test this
-hypothesis. These results support C3 as described.
+Third, the regulatory signal is low-dimensional: TF--gene interactions are
+driven primarily by 11 cell-type expression features plus a limited number of
+biologically meaningful embedding dimensions, far fewer than the nominal
+523-dimensional input.
 
 \begin{table*}[!t]
-  \caption{AUROC Retention at Each Sparsity Level. Post-hoc: pruned model
-    evaluated immediately. Fine-tuned: 10 further epochs with fresh Adam state.
-    Baseline AUROC~=~0.8015 (see footnote~1 re comparability with Table~II).
-    Comp.\ Ratio = fraction of total parameters remaining after pruning;
-    embedding tables account for $\approx$81\% of parameters, so 90\% neuron
-    sparsity reduces total parameters by only $\approx$17\%.}
+  \caption{Two-Tower AUROC Retention at Each Sparsity Level (Mean $\pm$ Std across 3 seeds).
+    Post-hoc: pruned model evaluated immediately. Fine-tuned: 10 further epochs.
+    Baseline AUROC~$= 0.8049 \pm 0.0079$.
+    Comp.\ Ratio = fraction of total parameters remaining; embedding tables account
+    for $\approx$81\% of parameters, so 90\% neuron sparsity reduces total
+    parameters by only $\approx$17\%.}
   \label{tab:pruning}
   \centering
   \small
   \begin{tabular}{lcccccc}
     \hline
-    Sparsity & Neurons & Comp.\ Ratio & PH AUROC & PH Ret. & FT AUROC & FT Ret. \\
+    Sparsity & Neurons/Tower & Comp.\ Ratio & PH Ret.\ (mean$\pm$std) & PH AUROC & FT Ret.\ (mean$\pm$std) & FT AUROC \\
     \hline
-    0\%            & 512           & 1.0000        & 0.8015        & 1.0000        & 0.8199        & 1.0229 \\
-    5\%            & 486           & 0.9903        & 0.8015        & 1.0000        & 0.8026        & 1.0013 \\
-    10\%           & 461           & 0.9811        & 0.8012        & 0.9996        & 0.8045        & 1.0038 \\
-    15\%           & 435           & 0.9714        & 0.8014        & 0.9998        & 0.7908        & 0.9866 \\
-    20\%           & 410           & 0.9621        & 0.8014        & 0.9998        & 0.8051        & 1.0044 \\
-    25\%           & 384           & 0.9525        & 0.8019        & 1.0005        & 0.7936        & 0.9901 \\
-    30\%           & 358           & 0.9428        & 0.8028        & 1.0016        & 0.8131        & 1.0144 \\
-    40\%           & 307           & 0.9239        & 0.8027        & 1.0014        & 0.8067        & 1.0064 \\
-    50\%           & 256           & 0.9050        & 0.8042        & 1.0033        & 0.7714        & 0.9625 \\
-    60\%           & 205           & 0.8860        & 0.8050        & 1.0043        & 0.7867        & 0.9815 \\
-    70\%           & 154           & 0.8671        & 0.8078        & 1.0079        & 0.8062        & 1.0059 \\
-    80\%           & 102           & 0.8478        & 0.8099        & 1.0104        & 0.7742        & 0.9659 \\
-    \textbf{90\%}  & \textbf{51}   & \textbf{0.8289} & \textbf{0.8037} & \textbf{1.0027} & \textbf{0.8214} & \textbf{1.0248} \\
+    0\%            & 512  & 1.0000 & $1.0000 \pm 0.0000$ & 0.8049 & $0.9986 \pm 0.0020$ & 0.8038 \\
+    5\%            & 486  & 0.9904 & $1.0000 \pm 0.0000$ & 0.8049 & $0.9843 \pm 0.0298$ & 0.7922 \\
+    10\%           & 461  & 0.9811 & $1.0002 \pm 0.0002$ & 0.8051 & $0.9988 \pm 0.0108$ & 0.8039 \\
+    15\%           & 435  & 0.9714 & $1.0001 \pm 0.0002$ & 0.8050 & $1.0064 \pm 0.0067$ & 0.8101 \\
+    20\%           & 410  & 0.9622 & $0.9998 \pm 0.0003$ & 0.8048 & $0.9995 \pm 0.0028$ & 0.8045 \\
+    25\%           & 384  & 0.9525 & $0.9997 \pm 0.0005$ & 0.8047 & $0.9972 \pm 0.0228$ & 0.8025 \\
+    30\%           & 358  & 0.9429 & $0.9990 \pm 0.0006$ & 0.8041 & $0.9900 \pm 0.0255$ & 0.7967 \\
+    40\%           & 307  & 0.9239 & $0.9987 \pm 0.0006$ & 0.8039 & $0.9995 \pm 0.0034$ & 0.8046 \\
+    50\%           & 256  & 0.9050 & $0.9976 \pm 0.0005$ & 0.8030 & $0.9970 \pm 0.0149$ & 0.8024 \\
+    60\%           & 205  & 0.8861 & $0.9964 \pm 0.0018$ & 0.8020 & $1.0010 \pm 0.0071$ & 0.8058 \\
+    70\%           & 154  & 0.8672 & $0.9926 \pm 0.0012$ & 0.7990 & $0.9919 \pm 0.0022$ & 0.7985 \\
+    80\%           & 102  & 0.8479 & $0.9837 \pm 0.0081$ & 0.7918 & $1.0023 \pm 0.0038$ & 0.8068 \\
+    \textbf{90\%}  & \textbf{51} & \textbf{0.8289} & $\mathbf{0.9778 \pm 0.0151}$ & \textbf{0.7870} & $\mathbf{1.0059 \pm 0.0042}$ & \textbf{0.8096} \\
     \hline
   \end{tabular}
   \smallskip
 
   \noindent\small PH = post-hoc (no additional training); FT = fine-tuned (10 epochs).
+  Mean $\pm$ std computed across seeds 42, 123, 456.
 \end{table*}
 
 \begin{figure}[!t]
   \centering
   \includegraphics[width=\columnwidth]{figures/fig4_3_pruning_curve.png}
-  \caption{AUROC retention vs.\ sparsity for post-hoc (blue) and fine-tuned
-    (red) evaluations; post-hoc retention never falls below 0.9996.}
+  \caption{Two-tower AUROC retention vs.\ sparsity for post-hoc (blue) and
+    fine-tuned (red) evaluations (mean $\pm$ std, 3 seeds). Post-hoc retention
+    stays above 0.997 through 60\% sparsity; degradation is visible at 80--90\%.}
   \label{fig:pruning}
 \end{figure}
 
 \begin{figure}[!t]
   \centering
   \includegraphics[width=\columnwidth]{figures/fig4_4_compression_scatter.png}
-  \caption{Compression ratio vs.\ post-hoc AUROC; points above the reference
-    line (baseline AUROC 0.8015) represent post-hoc improvements over the
-    unpruned model.}
+  \caption{Compression ratio vs.\ post-hoc AUROC for the two-tower; points above
+    the reference line (baseline AUROC 0.8049) represent marginal post-hoc
+    improvements from removing low-importance neurons.}
   \label{fig:scatter}
 \end{figure}
 
@@ -750,28 +867,118 @@ hypothesis. These results support C3 as described.
 To test whether representational redundancy is specific to the two-tower's
 cosine similarity bottleneck or a general property of these architectures,
 the same structured neuron pruning protocol was applied to the trained
-cross-encoder (seed = 42). In the cross-encoder, neurons are pruned from
-the first fully connected layer (fc1), which has 512 units. Importance
-scoring follows the same $\alpha$-weighted combination of activation
-frequency and weight magnitude used for the two-tower.
+cross-encoder (seed = 42). Baseline AUROC for the cross-encoder pruning
+experiment is 0.8924.
 
-\textit{[Results to be inserted after experiments complete.]}
-These results are compared directly with the two-tower retention curve
-in Fig.~\ref{fig:pruning} to assess whether the capacity-utilization
-hypothesis is specific to cosine similarity scoring.
+Table~\ref{tab:ce_pruning} presents the full results across all 13 sparsity
+levels. Several patterns are notable.
+
+\textbf{Post-hoc retention.} The cross-encoder maintains post-hoc AUROC
+retention $\geq 0.999$ at all sparsity levels up to 70\%, with retention
+actually \emph{increasing} beyond 1.0 at 50\%--70\% sparsity (peak of 1.016
+at 70\%). At 80\%, post-hoc retention drops to 0.999 (essentially no
+degradation), and at 90\% it falls to 0.987---a meaningful but moderate
+drop of 1.3 AUROC points from baseline.
+
+\textbf{Comparison with two-tower.} The cross-encoder is comparable to
+or slightly more robust than the two-tower in post-hoc performance at
+intermediate sparsity levels, but both architectures degrade at 90\% sparsity.
+This finding indicates that \emph{representational redundancy is not exclusive
+to cosine similarity scoring}: a cross-encoder with MLP readout is similarly
+over-parameterized in its hidden layer. The mechanistic account of the C1
+AUROC gap (Section~\ref{ssec:h3}) as arising primarily from the two-tower's
+capacity underutilization is therefore not supported by this comparison alone;
+both architectures show similar tolerance to neuron pruning, and the AUROC gap
+is better attributed to the inductive bias of joint input processing
+(Section~\ref{ssec:ablation}).
+
+\textbf{Fine-tuned retention.} Fine-tuned performance is notably lower than
+post-hoc at all sparsity levels for the cross-encoder (typical retention
+0.96--0.97), in contrast to the two-tower where fine-tuning recovers or
+exceeds baseline. Importantly, the fine-tuned 0\%-sparsity cross-encoder
+(baseline, no pruning at all) achieves only retention 0.9653---confirming
+that the deficit is caused by the fine-tuning procedure itself, not by
+pruning. The root cause is the fresh Adam optimizer state used for
+fine-tuning: resetting all momentum and variance estimates to zero causes
+early Adam steps to behave as approximately sign-gradient steps
+(step $\approx \eta \cdot \text{sign}(g)$ before historical statistics
+accumulate), which can disrupt a converged model's weight configuration.
+The two-tower's cosine similarity mechanism is more robust to such
+perturbations than the cross-encoder's learned joint feature interactions.
+In the revised implementation, the fine-tuning learning rate for the
+cross-encoder has been reduced from 0.001 to 0.0002 and extended to
+20 epochs to allow the fresh Adam state to stabilize; results in
+Table~\ref{tab:ce_pruning} reflect the original protocol and should be
+interpreted accordingly.
+
+\begin{table*}[!t]
+  \caption{Cross-Encoder AUROC Retention at Each Sparsity Level (Seed = 42).
+    Post-hoc: pruned model evaluated immediately. Fine-tuned: 10 further epochs.
+    Baseline AUROC~$= 0.8924$.}
+  \label{tab:ce_pruning}
+  \centering
+  \small
+  \begin{tabular}{lccccccc}
+    \hline
+    Sparsity & Neurons & Comp.\ Ratio & PH AUROC & PH Ret. & FT AUROC & FT Ret. \\
+    \hline
+    0\%           & 512 & 1.0000 & 0.8924 & 1.0000 & 0.8615 & 0.9653 \\
+    5\%           & 486 & 0.9904 & 0.8924 & 0.9999 & 0.8580 & 0.9614 \\
+    10\%          & 461 & 0.9811 & 0.8925 & 1.0001 & 0.8633 & 0.9673 \\
+    15\%          & 435 & 0.9714 & 0.8927 & 1.0003 & 0.8670 & 0.9715 \\
+    20\%          & 410 & 0.9622 & 0.8929 & 1.0005 & 0.8600 & 0.9637 \\
+    25\%          & 384 & 0.9525 & 0.8925 & 1.0001 & 0.8544 & 0.9574 \\
+    30\%          & 358 & 0.9429 & 0.8927 & 1.0003 & 0.8600 & 0.9637 \\
+    40\%          & 307 & 0.9239 & 0.8926 & 1.0002 & 0.8603 & 0.9640 \\
+    50\%          & 256 & 0.9050 & 0.8978 & 1.0060 & 0.8536 & 0.9565 \\
+    60\%          & 205 & 0.8861 & 0.9000 & 1.0085 & 0.8544 & 0.9574 \\
+    70\%          & 154 & 0.8672 & 0.9066 & 1.0158 & 0.8544 & 0.9574 \\
+    80\%          & 102 & 0.8479 & 0.8912 & 0.9987 & 0.8596 & 0.9632 \\
+    \textbf{90\%} & \textbf{51}  & \textbf{0.8289} & \textbf{0.8808} & \textbf{0.9870} & \textbf{0.8487} & \textbf{0.9509} \\
+    \hline
+  \end{tabular}
+  \smallskip
+
+  \noindent\small PH = post-hoc; FT = fine-tuned (10 epochs). Single seed (42).
+\end{table*}
 
 \subsection{Temperature Sensitivity of the Two-Tower Cosine Scorer}
 \label{ssec:tempsearch}
 
 To verify that the fixed temperature $\tau = 0.05$ does not artificially
 suppress two-tower performance, a grid search over
-$\tau \in \{0.01, 0.05, 0.1, 0.5, 1.0\}$ was conducted using 3 seeds
-(42, 123, 456) at the 1:1 negative sampling ratio.
+$\tau \in \{0.01, 0.05, 0.1, 0.5, 1.0\}$ was conducted using three seeds
+(42, 123, 456) at the 1:1 ratio.
 
-\textit{[Results to be inserted after experiments complete.]}
-If a different $\tau$ achieves substantially higher AUROC than $\tau = 0.05$,
-the main two-tower results are to be interpreted as a lower bound on
-two-tower performance rather than the best-case result.
+Table~\ref{tab:tempsearch} presents results. The best mean AUROC is achieved
+at $\tau = 1.0$ (mean $0.8111 \pm 0.0067$), with a modest improvement of
+1.1~AUROC points over $\tau = 0.05$ (mean $0.8006 \pm 0.0131$). All five
+tested values of $\tau$ produce mean AUROC in the range $[0.8001, 0.8111]$,
+with no value providing a substantial advantage. Crucially, even the
+best-performing temperature ($\tau = 1.0$, AUROC $= 0.8111$) remains
+9.1~AUROC points below the cross-encoder (AUROC $= 0.9025$), confirming
+that the architecture comparison is not materially affected by the choice of
+$\tau$. The AUROC gap attributable to architectural differences rather than
+temperature tuning is therefore at least 9.1~AUROC points.
+
+\begin{table}[!t]
+  \caption{Temperature Grid Search for Two-Tower (1:1 Ratio, 3 Seeds).
+    Best value is $\tau=1.0$.}
+  \label{tab:tempsearch}
+  \centering
+  \small
+  \begin{tabular}{lcc}
+    \hline
+    $\tau$ & Mean AUROC & Std \\
+    \hline
+    0.01 & 0.8001 & 0.0056 \\
+    0.05 & 0.8006 & 0.0131 \\
+    0.10 & 0.8070 & 0.0079 \\
+    0.50 & 0.8041 & 0.0054 \\
+    \textbf{1.00} & \textbf{0.8111} & 0.0067 \\
+    \hline
+  \end{tabular}
+\end{table}
 
 \begin{figure}[!t]
   \centering
@@ -792,16 +999,78 @@ two-tower performance rather than the best-case result.
   \label{fig:pr_comparison}
 \end{figure}
 
-% ── V. DISCUSSION ────────────────────────────────────────────────────────────
-\section{Discussion}
+\subsection{Classical Baseline Comparison}
+\label{ssec:baseline}
+
+To contextualize the neural models' AUROC values, we evaluated three classical
+machine learning classifiers on the same test split using \emph{expression-only}
+features (no learned embeddings): the 11-dimensional cell-type expression profile
+of the TF and the 11-dimensional profile of the gene are concatenated to form a
+22-dimensional input.
+
+Table~\ref{tab:baseline} presents the results. A gradient-boosted tree
+classifier achieves AUROC~0.587 and accuracy 55.4\%---barely above the
+majority-class baseline (AUROC 0.500). These results reveal two important facts.
+First, the 22-dimensional expression features alone carry almost no predictive
+signal for this task; a random classifier achieves 50\% AUROC, and the best
+classical model improves this by only 8.7 AUROC points. Second, this implies
+that the neural models' AUROC of 0.7941 (two-tower) and 0.9025 (cross-encoder)
+are driven primarily by the 4.52M parameters of the learned entity embeddings
+(81\% of total parameters), which encode database membership structure. Note
+that expression coverage in this dataset is sparse: only 10.7\% of TFs and
+14.6\% of genes have non-zero expression vectors, because the expression data
+covers 2,000 highly variable genes and most regulatory entities fall outside
+this set.
+
+\textbf{Interpretation.} The neural models' advantage over classical baselines
+is almost entirely due to learned embeddings rather than expression-driven
+regulatory inference. This confirms the transductive, database-reconstruction
+nature of the task (Section~\ref{ssec:data}): the embeddings effectively learn
+which entities co-appear in positive training pairs, and generalization to novel
+TF--gene pairs is limited by the fixed training vocabulary. A fairer test of
+regulatory inference capability would evaluate on TF--gene pairs involving
+TFs or genes held out from the embedding vocabulary (inductive evaluation),
+which would substantially reduce the AUROC advantage of embedding-based
+methods over expression-only classifiers.
+
+\begin{table}[!t]
+  \caption{Classical ML Baselines vs.\ Neural Models (Expression-Only Features,
+    22-dim; Same 70/15/15 Split; Test Set = 7{,}109 Examples).}
+  \label{tab:baseline}
+  \centering
+  \footnotesize
+  \begin{tabular}{@{}lcccc@{}}
+    \hline
+    Model & Acc & AUROC & AUPRC & F1 \\
+    \hline
+    Majority class               & 49.95\% & 0.500 & 0.500 & 0.333 \\
+    Logistic Regression          & 52.85\% & 0.569 & 0.558 & 0.416 \\
+    Random Forest ($n$=200)      & 55.20\% & 0.581 & 0.572 & 0.483 \\
+    Gradient Boosted Trees       & 55.44\% & 0.587 & 0.581 & 0.484 \\
+    \hline
+    \multicolumn{5}{@{}l@{}}{\textit{Neural reference (512-dim embeddings):}} \\
+    Two-Tower (5.58M)            & 79.42\% & 0.7941 & 0.7501 & 0.7962 \\
+    Cross-Encoder (5.58M)        & 83.46\% & \textbf{0.9025} & \textbf{0.8914} & 0.8338 \\
+    \hline
+  \end{tabular}
+  \smallskip
+
+  \noindent\footnotesize Classical models use 22-dim expression features; neural
+  models add 512-dim learned embeddings. The gap reflects embedding contribution.
+\end{table}
+
+
 \label{sec:discussion}
 
 The three contributions investigated in this paper form a coherent account of
 the relationship between architectural inductive bias and representational
 efficiency in neural GRN inference. The cross-encoder's advantage over the
-two-tower (C1) is robust to moderately imbalanced conditions where the two-tower fails
-(C2), and the pruning analysis explains \emph{why} the two-tower is limited:
-its nominal parameter count does not reflect its effective capacity (C3).
+two-tower (C1) is robust to moderately imbalanced conditions where the two-tower
+fails (C2). The pruning analysis (C3) demonstrates that both architectures
+tolerate significant neuron removal---indicating over-parameterization in the
+hidden layers---but this is a general property of over-parameterized networks
+rather than a specific explanation for the AUROC gap; the ablation (C1)
+localizes the gap to joint input processing.
 
 \textbf{Unified interpretation.} The factorized two-tower architecture imposes
 a strong inductive bias that is both its strength and its weakness. By
@@ -815,137 +1084,168 @@ mechanism that enables this efficiency also prevents the model from learning
 the joint features that drive regulatory specificity, leading to the AUROC gap
 observed in C1 and the sensitivity to class imbalance in C2.
 
-The neuron pruning results (C3) reinforce this picture: the two-tower's
-512-dimensional hidden space is far larger than necessary, suggesting that the
-cosine similarity objective cannot leverage the full representational capacity
-that is nominally available. This is consistent with a mechanistic account of
-the C1 AUROC gap in which the representational bottleneck of cosine scoring
-limits effective capacity below the nominal parameter count. The ablation reported in Section~\ref{ssec:ablation} shows that the
-element-wise product contributes $\approx$1.2~AUROC points (12\% of the gap),
-while joint encoding alone accounts for $\approx$8.3~points (88\%); this
-substantially strengthens the mechanistic interpretation.
+The neuron pruning results (C3) show that both architectures are substantially
+over-parameterized in their hidden layers: the two-tower retains $\geq 0.997$
+post-hoc AUROC through 60\% sparsity, and the cross-encoder retains $\geq 0.999$
+through 70\% sparsity. Because this over-parameterization is shared by both
+architectures, it cannot explain the C1 AUROC gap by itself. The ablation
+reported in Section~\ref{ssec:ablation} provides the more precise account:
+$\approx$95\% of the 10.8-point gap is attributable to joint input processing,
+with the remaining $\approx$5\% from the element-wise product. The interpretation
+of C3 in the context of C1 is therefore that the two-tower's nominal parameter
+count is neither necessary nor sufficient to characterize its effective capacity
+relative to the cross-encoder; the relevant factor is the architectural
+constraint that forces all pair-scoring information to pass through
+independently computed encodings.
+
+\textbf{Temperature sensitivity.} The temperature grid search
+(Section~\ref{ssec:tempsearch}) confirms that the two-tower AUROC advantage is
+not an artifact of $\tau = 0.05$: the best-performing temperature ($\tau = 1.0$,
+AUROC $= 0.8111$) is only 1.1~AUROC points above the default $\tau = 0.05$, and
+the gap to the cross-encoder (0.9025) remains large (9.1 points) even at the
+optimal temperature. The AUROC gap is robust to temperature tuning.
 
 \textbf{Practical recommendations (qualified to this dataset).}
 On the human brain snRNA-seq dataset studied here: if AUROC is the primary
-criterion, the cross-encoder (with element-wise product) is the clear choice.
-If scalability to genome-scale pair evaluation ($10^6$--$10^8$ pairs) is
-paramount, the two-tower may be preferred, with practitioners noting a
-6--10~AUROC point cost relative to a cross-encoder of comparable size; the
-90\%-sparse two-tower
-achieves baseline performance at reduced representation size.
+criterion, the cross-encoder (with element-wise product) is the clear choice,
+with a 10.8-point AUROC advantage over the parameter-matched two-tower. If
+scalability to genome-scale pair evaluation ($10^6$--$10^8$ pairs) is
+paramount, the two-tower may be preferred, noting the 9--11~AUROC point cost
+relative to a cross-encoder of comparable size; both architectures can be
+substantially compressed (to 40--60\% of hidden-layer capacity) without
+post-hoc AUROC loss.
 
 \textbf{Limitations.}
 
-\emph{Scope and generalizability.}
+\emph{Transductive setting and generalizability.}
+Both architectures operate transductively: entity embeddings are optimized for
+the 1,164 TFs and 7,664 genes present in the training split. The models cannot
+produce meaningful predictions for TFs or genes outside their training
+vocabulary without full retraining. The classical baseline comparison
+(Section~\ref{ssec:baseline}) shows that expression features alone yield
+AUROC~$\approx$0.587, confirming that the neural models' advantage is
+primarily due to memorized embedding structure rather than expression-based
+regulatory inference. Inductive GRN inference---predicting regulation for
+novel TFs or genes using only expression and biological sequence features---is
+not addressed by this work.
+
+\emph{Single dataset and scope.}
 This study uses a single biological dataset (human brain single-nucleus
 RNA-seq); whether the cross-encoder advantage persists across other tissues,
-organisms, or expression modalities is not established.
-No comparison to published GRN inference baselines (e.g., GENIE3, SCENIC) is
-provided, as those methods operate on different inputs (full expression
-matrices rather than per-cell-type summaries); a rigorous benchmark evaluation
-using a standardized protocol such as the BEELINE framework~\cite{pratapa2020}
-is needed to assess absolute performance relative to existing methods. Results
-on a single dataset from a single species and tissue type are insufficient to
-support general architectural recommendations; multi-dataset evaluation is a
-necessary step for a follow-up study. All architectural recommendations in this
-paper are therefore qualified to the dataset and experimental conditions
+organisms, or expression modalities is not established. Multi-dataset
+evaluation on a standardized benchmark such as BEELINE~\cite{pratapa2020}
+is a necessary next step to assess generalizability. All architectural
+recommendations are qualified to the dataset and experimental conditions
 studied here.
 
 \emph{Fairness of the architectural comparison.}
-The ablation experiment in Section~\ref{ssec:ablation} has resolved the
-element-wise product confound: joint encoding accounts for $\approx$88\% of
-the AUROC gap, with the product term contributing the remaining $\approx$12\%.
-A temperature grid search over $\tau \in \{0.01, 0.05, 0.1, 0.5, 1.0\}$ was
-conducted to verify that the fixed $\tau = 0.05$ does not artificially suppress
-two-tower performance; results are reported in Section~\ref{ssec:tempsearch}.
-The learning rate $\eta = 0.001$ was chosen to match convergence behavior
-rather than from independent per-architecture grid search; the reported
-performance gap could be partially attributable to suboptimal hyperparameter
-alignment rather than architecture alone. This remains a residual limitation.
+The ablation experiment resolves the element-wise product confound
+($\approx$95\% joint encoding, $\approx$5\% product), but the no-product
+cross-encoder has $\approx$4.8\% fewer parameters (5.32M vs.\ 5.58M), a
+residual confound. The learning rate $\eta = 0.001$ was chosen for
+cross-encoder stability rather than from per-architecture grid search; the
+remaining gap at optimal temperature ($\tau=1.0$, AUROC $=0.8111$) is still
+9.1~points. Independent per-architecture learning-rate tuning remains an
+open question.
 
-\emph{Evaluation protocol.}
-AUPRC is now reported alongside AUROC, accuracy, and macro F1 (see
-Tables~\ref{tab:balanced} and~\ref{tab:imbalance}); ensemble AUROC is also
-reported. ROC curves for all four experimental conditions are shown in
-Fig.~\ref{fig:roc_comparison}, and precision-recall curves are shown in
-Fig.~\ref{fig:pr_comparison}. The 5:1 negative sampling regime is far from the
-true TF--gene imbalance ratio ($\approx$376:1); the relative behavior of both
-architectures under severe imbalance ($\geq$50:1) is unknown and remains a
-limitation.
+\emph{Evaluation protocol and class imbalance.}
+AUPRC, AUROC, accuracy, and macro F1 are reported; ROC and PR curves for all
+four conditions are shown in Figs.~\ref{fig:roc_comparison}
+and~\ref{fig:pr_comparison}. The 5:1 negative sampling regime is evaluated
+on a balanced (1:1) test set; accuracy and F1 at threshold 0.5 are
+therefore affected by miscalibration. AUROC is threshold-independent and is
+the primary metric for the imbalance comparison. The 5:1 condition is far
+from the true ratio ($\approx$376:1); behavior under severe imbalance
+($\geq$50:1) is not established and is a significant limitation for
+deployment conclusions.
+
+\emph{Model depth and architecture search.}
+Both models use 2-layer MLPs with 512 hidden units. Deeper or wider
+two-tower architectures, or late-interaction approaches (ColBERT-style),
+may narrow the AUROC gap. A systematic search is beyond the scope of this
+study.
+
+\emph{Baseline comparison.}
+No comparison to published GRN inference methods (GENIE3, SCENIC,
+GRNBoost2) is provided, as those methods require full single-cell expression
+matrices rather than per-cell-type summaries. The classical baseline
+Table~\ref{tab:baseline} provides expression-only context.
+A rigorous BEELINE benchmark evaluation is needed to assess absolute
+performance.
 
 \emph{Label quality.}
-Negative training examples were sampled uniformly from TF--gene pairs absent
-from DoRothEA and TRRUST. These databases are incomplete: many absent pairs
-may represent true regulatory relationships not yet experimentally
-characterized. The degree to which false-negative contamination affects the
-comparison is not quantified; evaluating with higher-confidence positive sets
-(e.g., DoRothEA confidence tiers A/B only) would partially address this.
+Negative examples are sampled from pairs absent in DoRothEA and TRRUST.
+These databases are incomplete; absent pairs may represent undiscovered
+regulation. False-negative contamination is not quantified.
 
 \emph{Pruning experiment.}
-The pruning experiment has been extended to three random seeds (42, 123, 456);
-Table~\ref{tab:pruning} now reports mean~$\pm$~std retention, resolving the
-single-seed limitation. The same structured pruning protocol has been applied
-to the trained cross-encoder; results are reported in
-Section~\ref{ssec:h3_ce} and compared directly with the two-tower retention
-curve to test whether the capacity-utilization argument is specific to cosine
-similarity scoring. The non-monotonic fine-tuning behavior at some sparsity
-levels reflects the limited 10-epoch fine-tune budget; this remains a
-limitation for the fine-tuned (but not post-hoc) retention estimates.
+The two-tower pruning uses three random seeds; the cross-encoder pruning
+uses a single seed (seed=42), limiting direct variance comparison.
+The cross-encoder fine-tuning results are affected by a fresh-Adam
+disruption artifact (see Section~\ref{ssec:h3_ce}); post-hoc retention
+values are the primary comparison metric.
 
 \emph{Implementation.}
-All models were implemented from scratch in Rust without a reference
-framework. Implementation correctness is supported by: (1) training loss
-monotonically decreases from $\approx$0.69 (random initialization) to
-$<$0.40 across all configurations, consistent with correct BCE gradient
-propagation; (2) gradient norms are well-behaved under clipping at 5.0 for
-all seeds and architectures; (3) AUROC values at initialization ($\approx$0.5)
-increase monotonically to reported values, ruling out trivial gradient errors.
-No reproduction of a published benchmark result on an independent dataset is
-provided, which remains a limitation. Training was performed on CPU hardware,
-which constrains the scale of architectures that could be practically evaluated;
-larger models with wider hidden layers or additional depth might close the AUROC
-gap.
+All models were implemented in Rust without a reference framework.
+Correctness is supported by: (1) training loss decreases monotonically from
+$\approx$0.69 to $<$0.40; (2) gradient norms are well-behaved; (3) AUROC
+improves monotonically from $\approx$0.5 at initialization.
+No independent benchmark replication is provided.
 
 \textbf{Future directions.} Three extensions are directly motivated by these
-results. First, an InfoNCE-trained two-tower, where the contrastive objective
-explicitly attracts positive TF--gene pairs and repels negatives within a
-batch, may be more robust to the marginal distribution sensitivity observed in
-C2 while retaining the two-tower's inference efficiency. Second, a
-cross-attention two-tower --- where the gene encoder attends over the TF
-encoding before producing a final representation --- would bridge the two
-architectures, enabling per-pair interaction features while maintaining the
-factorized structure required for efficient inference. Third, evaluation on
-additional datasets and tissues (e.g., BEELINE benchmark~\cite{pratapa2020}),
-ideally including comparison with published GRN baselines, would establish
-whether the architectural advantage observed here generalizes beyond the
-human brain snRNA-seq setting.
+results. First, an InfoNCE-trained two-tower~\cite{oord2018}, where the
+contrastive objective explicitly attracts positive TF--gene pairs and repels
+negatives within a batch, may be more robust to the marginal distribution
+sensitivity observed in C2 while retaining the two-tower's inference
+efficiency. Supervised contrastive learning~\cite{khosla2020} extends this
+framework to settings with multiple positives per anchor---potentially
+valuable if multiple curated databases (DoRothEA confidence tiers A/B,
+TRRUST, ENCODE) are combined as complementary positive-label sources,
+providing a more nuanced signal than a single binary label. The InfoNCE
+objective may also address the geometric compression problem identified in
+C2: by explicitly maximizing the cosine similarity of positive pairs within
+each batch, it counteracts the distortion caused by an overabundance of
+negatives.
+Second, a cross-attention two-tower --- where the gene encoder attends over
+the TF encoding before producing a final representation --- would bridge the
+two architectures, enabling per-pair interaction features while maintaining
+the factorized structure required for efficient inference~\cite{humeau2020}.
+Third, evaluation on additional datasets and tissues (e.g., the BEELINE
+benchmark~\cite{pratapa2020}) with additional GRN baselines
+(GENIE3~\cite{huynh2010}, GRNBoost2~\cite{moerman2019}, PIDC~\cite{chan2017})
+would establish whether the architectural advantage observed here generalizes
+across tissues, organisms, and expression modalities, and would provide the
+absolute performance context needed to assess practical utility.
 
 % ── VI. CONCLUSION ───────────────────────────────────────────────────────────
 \section{Conclusion}
 \label{sec:conclusion}
 
-This paper has compared two-tower and cross-encoder neural architectures for
-TF--gene regulatory edge prediction from single-nucleus RNA-seq data under
-parameter-matched, data-matched conditions. The cross-encoder achieves 9.4
-higher AUROC points than the two-tower under balanced training (0.9040 vs.\
-0.8097, $t(4)=24.24$, $p < 0.0001$) and remains stable under 5:1 negative
-sampling where the two-tower degrades by 6.6~points ($t(5.15)=8.98$,
-$p < 0.001$). A no-product ablation of the cross-encoder isolates the
-contribution of joint encoding: $\approx$88\% of the gap (8.3~AUROC points) is
-attributable to joint input processing, with the remaining $\approx$12\%
-(1.2~points) from the element-wise interaction term. A structured neuron
-pruning analysis extended across three random seeds reveals that post-hoc AUROC
-retention never falls below 99.96\% of baseline, with 51 neurons per tower
-sufficient to match baseline AUROC without additional training; the same
-analysis applied to the cross-encoder characterizes whether this capacity
-underutilization is specific to cosine similarity scoring. On the single human
-brain dataset studied here, the cross-encoder is the preferred architecture
-when discriminative accuracy is the primary criterion; for genome-scale
-applications requiring efficient inference, the compressed two-tower at 90\%
-neuron sparsity offers equivalent AUROC at substantially reduced hidden-layer
-size. All architectural recommendations are qualified to the dataset and
-conditions studied; multi-dataset and cross-tissue validation is required for
-general applicability.
+This paper has compared dual-encoder (two-tower) and cross-encoder neural
+architectures for TF--gene regulatory edge prediction from single-nucleus
+RNA-seq data under parameter-matched, data-matched conditions. The
+cross-encoder achieves 10.8~higher AUROC points than the two-tower under
+balanced training (0.9025 vs.\ 0.7941, $t(4)=27.08$, $p < 0.0001$,
+Bonferroni-corrected $\alpha=0.017$, Cohen's $d=12.1$) and remains stable
+under 5:1 negative sampling where the two-tower degrades by 10.1~points
+($t(4.25)=4.06$, $p = 0.014$, nominally significant under correction).
+A no-product ablation isolates $\approx$95\% of the gap (10.3~AUROC points)
+to joint input processing and $\approx$5\% (0.5~points) to the element-wise
+interaction term; the no-product model has 4.8\% fewer parameters, a
+residual confound. A temperature grid search confirms the gap persists at all
+tested temperatures (best two-tower AUROC $= 0.8111$). Structured neuron
+pruning across three seeds shows both architectures tolerate hidden-layer
+sparsity: the two-tower retains $\geq 0.997$ post-hoc AUROC through 60\%
+sparsity; the cross-encoder $\geq 0.999$ through 70\% sparsity. A
+classical baseline comparison shows that expression-only features yield
+AUROC~$\approx$0.587, confirming that both neural models' advantage is
+embedding-driven and that the evaluation measures database reconstruction
+in a transductive setting rather than inductive regulatory inference.
+On the single human brain dataset studied here, the cross-encoder is the
+preferred architecture for discriminative accuracy; both architectures
+can be substantially compressed without post-hoc AUROC loss. Multi-dataset
+validation, inductive evaluation on held-out entities, and comparison to
+published GRN baselines are required before general conclusions can be drawn.
 
 % ── REFERENCES ───────────────────────────────────────────────────────────────
 \bibliographystyle{IEEEtran}

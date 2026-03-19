@@ -1,0 +1,43 @@
+{
+  "description": "Classical ML baselines on expression-only features (11-dim cell-type profiles per entity, 22-dim pair features). No learned embeddings. Same 70/15/15 split.",
+  "feature_dim": 22,
+  "test_size": 7109,
+  "positive_rate_test": 0.49950766633844423,
+  "results": [
+    {
+      "model": "Majority-class",
+      "accuracy": 0.49950766633844423,
+      "auroc": 0.5,
+      "auprc": 0.49950766633844423,
+      "macro_f1": 0.3331144465290807
+    },
+    {
+      "model": "Logistic Regression",
+      "accuracy": 0.5284850189900127,
+      "auroc": 0.5687059943529037,
+      "auprc": 0.5582470002275716,
+      "macro_f1": 0.41626436914509635
+    },
+    {
+      "model": "Random Forest (n=200)",
+      "accuracy": 0.5519763679842453,
+      "auroc": 0.5813355032720834,
+      "auprc": 0.5718210884774021,
+      "macro_f1": 0.483406841571944
+    },
+    {
+      "model": "Gradient Boosted Trees (n=200)",
+      "accuracy": 0.5543677029118019,
+      "auroc": 0.5873132824534301,
+      "auprc": 0.5806542146518762,
+      "macro_f1": 0.4843870882663228
+    }
+  ],
+  "neural_reference": {
+    "two_tower_auroc": 0.7941,
+    "two_tower_acc": 0.7942,
+    "cross_encoder_auroc": 0.9025,
+    "cross_encoder_acc": 0.8346,
+    "note": "Neural models use 512-dim learned embeddings + 11-dim expression features (523-dim per entity)"
+  }
+}
