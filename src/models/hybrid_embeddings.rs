@@ -1,9 +1,10 @@
 /// Hybrid model: Learnable embeddings + Expression features
 /// Target: 70%+ accuracy by combining structure and biology
-use crate::models::nn::{LinearLayer, relu, relu_backward};
+use crate::models::nn::{LinearLayer, Dropout, relu, relu_backward};
 use ndarray::{Array1, Array2, Axis};
 use std::collections::HashMap;
 use std::f32;
+use rand::rngs::StdRng;
 
 /// Raw activation and weight statistics collected during profiling pass.
 /// All counts are per neuron (index = fc1 output neuron j, 0..hidden_dim-1).
@@ -70,8 +71,8 @@ pub struct HybridEmbeddingModel {
     gene_concat: Option<Array2<f32>>,
     tf_h1: Option<Array2<f32>>,
     gene_h1: Option<Array2<f32>>,
-    tf_final: Option<Array2<f32>>,
-    gene_final: Option<Array2<f32>>,
+    pub tf_final: Option<Array2<f32>>,
+    pub gene_final: Option<Array2<f32>>,
 }
 
 impl HybridEmbeddingModel {
@@ -201,6 +202,122 @@ impl HybridEmbeddingModel {
         scores
     }
     
+    /// Forward pass with dropout after each hidden layer.
+    /// `dropout` layers are passed in and mutated (they store masks for backward).
+    /// `training` controls whether dropout is active.
+    pub fn forward_with_dropout(
+        &mut self,
+        tf_indices: &[usize],
+        gene_indices: &[usize],
+        tf_expr: &Array2<f32>,
+        gene_expr: &Array2<f32>,
+        tf_dropout: &mut Dropout,
+        gene_dropout: &mut Dropout,
+        training: bool,
+        rng: &mut StdRng,
+    ) -> Array1<f32> {
+        let batch_size = tf_indices.len();
+
+        self.tf_indices_cache = Some(tf_indices.to_vec());
+        self.gene_indices_cache = Some(gene_indices.to_vec());
+        self.tf_expr_cache = Some(tf_expr.clone());
+        self.gene_expr_cache = Some(gene_expr.clone());
+
+        let mut tf_embed_batch = Array2::zeros((batch_size, self.embed_dim));
+        let mut gene_embed_batch = Array2::zeros((batch_size, self.embed_dim));
+        for (i, &tf_idx) in tf_indices.iter().enumerate() {
+            tf_embed_batch.row_mut(i).assign(&self.tf_embed.row(tf_idx));
+        }
+        for (i, &gene_idx) in gene_indices.iter().enumerate() {
+            gene_embed_batch.row_mut(i).assign(&self.gene_embed.row(gene_idx));
+        }
+        self.tf_embed_out = Some(tf_embed_batch.clone());
+        self.gene_embed_out = Some(gene_embed_batch.clone());
+
+        let tf_concat = ndarray::concatenate![Axis(1), tf_embed_batch, tf_expr.clone()];
+        let gene_concat = ndarray::concatenate![Axis(1), gene_embed_batch, gene_expr.clone()];
+        self.tf_concat = Some(tf_concat.clone());
+        self.gene_concat = Some(gene_concat.clone());
+
+        // TF: fc1 → relu → dropout → fc2
+        let tf_h1_pre = self.tf_fc1.forward(&tf_concat);
+        let tf_h1 = relu(&tf_h1_pre);
+        let tf_h1_drop = tf_dropout.forward(&tf_h1, training, rng);
+        let tf_out = self.tf_fc2.forward(&tf_h1_drop);
+        self.tf_h1 = Some(tf_h1_drop);
+        self.tf_final = Some(tf_out.clone());
+
+        // Gene: fc1 → relu → dropout → fc2
+        let gene_h1_pre = self.gene_fc1.forward(&gene_concat);
+        let gene_h1 = relu(&gene_h1_pre);
+        let gene_h1_drop = gene_dropout.forward(&gene_h1, training, rng);
+        let gene_out = self.gene_fc2.forward(&gene_h1_drop);
+        self.gene_h1 = Some(gene_h1_drop);
+        self.gene_final = Some(gene_out.clone());
+
+        let mut scores = Array1::zeros(batch_size);
+        for i in 0..batch_size {
+            let dot = tf_out.row(i).dot(&gene_out.row(i));
+            let logit = dot / self.temperature;
+            scores[i] = 1.0 / (1.0 + (-logit).exp());
+        }
+        scores
+    }
+
+    /// Backward pass with dropout. Call after forward_with_dropout.
+    pub fn backward_with_dropout(
+        &mut self,
+        grad_output: &Array1<f32>,
+        tf_dropout: &Dropout,
+        gene_dropout: &Dropout,
+    ) {
+        let batch_size = grad_output.len();
+        let tf_out = self.tf_final.as_ref().unwrap();
+        let gene_out = self.gene_final.as_ref().unwrap();
+
+        let mut grad_tf_out = Array2::zeros(tf_out.raw_dim());
+        let mut grad_gene_out = Array2::zeros(gene_out.raw_dim());
+
+        for i in 0..batch_size {
+            let dot = tf_out.row(i).dot(&gene_out.row(i));
+            let logit = dot / self.temperature;
+            let score = 1.0 / (1.0 + (-logit).exp());
+            let grad_sigmoid = score * (1.0 - score) * grad_output[i];
+            let grad_dot = grad_sigmoid / self.temperature;
+            grad_tf_out.row_mut(i).assign(&(&gene_out.row(i) * grad_dot));
+            grad_gene_out.row_mut(i).assign(&(&tf_out.row(i) * grad_dot));
+        }
+
+        // Gene encoder backward (with dropout)
+        let grad_gene_h1 = self.gene_fc2.backward(&grad_gene_out);
+        let grad_gene_h1_drop = gene_dropout.backward(&grad_gene_h1);
+        let gene_h1 = self.gene_h1.as_ref().unwrap();
+        let grad_gene_h1_pre = relu_backward(gene_h1, &grad_gene_h1_drop);
+        let grad_gene_concat = self.gene_fc1.backward(&grad_gene_h1_pre);
+
+        // TF encoder backward (with dropout)
+        let grad_tf_h1 = self.tf_fc2.backward(&grad_tf_out);
+        let grad_tf_h1_drop = tf_dropout.backward(&grad_tf_h1);
+        let tf_h1 = self.tf_h1.as_ref().unwrap();
+        let grad_tf_h1_pre = relu_backward(tf_h1, &grad_tf_h1_drop);
+        let grad_tf_concat = self.tf_fc1.backward(&grad_tf_h1_pre);
+
+        // Embedding gradients
+        let grad_tf_embed = grad_tf_concat.slice(ndarray::s![.., 0..self.embed_dim]).to_owned();
+        let grad_gene_embed = grad_gene_concat.slice(ndarray::s![.., 0..self.embed_dim]).to_owned();
+
+        let tf_indices = self.tf_indices_cache.as_ref().unwrap();
+        let gene_indices = self.gene_indices_cache.as_ref().unwrap();
+        for (i, &tf_idx) in tf_indices.iter().enumerate() {
+            let mut row = self.tf_embed_grad.row_mut(tf_idx);
+            row += &grad_tf_embed.row(i);
+        }
+        for (i, &gene_idx) in gene_indices.iter().enumerate() {
+            let mut row = self.gene_embed_grad.row_mut(gene_idx);
+            row += &grad_gene_embed.row(i);
+        }
+    }
+
     /// Backward pass
     pub fn backward(&mut self, grad_output: &Array1<f32>) {
         let batch_size = grad_output.len();

@@ -1,8 +1,9 @@
 /// Cross-encoder model for GRN edge prediction.
 /// Input: [TF_emb | Gene_emb | TF_expr | Gene_expr | TF_emb⊙Gene_emb]
 /// Output: raw logit [batch, 1]. Use bce_loss/bce_loss_backward from nn.rs.
-use crate::models::nn::{LinearLayer, relu, relu_backward};
+use crate::models::nn::{LinearLayer, Dropout, relu, relu_backward};
 use ndarray::{Array2, Axis};
+use rand::rngs::StdRng;
 
 #[derive(Clone)]
 pub struct CrossEncoderModel {
@@ -118,6 +119,95 @@ impl CrossEncoderModel {
 
         // FC3 → raw logit (no activation)
         self.fc3.forward(&h2)
+    }
+
+    /// Forward with dropout after each hidden layer.
+    pub fn forward_with_dropout(
+        &mut self,
+        tf_indices: &[usize],
+        gene_indices: &[usize],
+        tf_expr: &Array2<f32>,
+        gene_expr: &Array2<f32>,
+        dropout1: &mut Dropout,
+        dropout2: &mut Dropout,
+        training: bool,
+        rng: &mut StdRng,
+    ) -> Array2<f32> {
+        let batch = tf_indices.len();
+
+        let mut tf_emb = Array2::zeros((batch, self.embed_dim));
+        let mut gene_emb = Array2::zeros((batch, self.embed_dim));
+        for (i, &idx) in tf_indices.iter().enumerate() {
+            tf_emb.row_mut(i).assign(&self.tf_embed.row(idx));
+        }
+        for (i, &idx) in gene_indices.iter().enumerate() {
+            gene_emb.row_mut(i).assign(&self.gene_embed.row(idx));
+        }
+
+        self.tf_indices_cache = Some(tf_indices.to_vec());
+        self.gene_indices_cache = Some(gene_indices.to_vec());
+        self.tf_embed_cache = Some(tf_emb.clone());
+        self.gene_embed_cache = Some(gene_emb.clone());
+
+        let interaction = &tf_emb * &gene_emb;
+        let input = ndarray::concatenate![
+            Axis(1), tf_emb.view(), gene_emb.view(),
+            tf_expr.view(), gene_expr.view(), interaction.view()
+        ];
+
+        let h1_pre = self.fc1.forward(&input);
+        self.h1_pre_cache = Some(h1_pre.clone());
+        let h1 = relu(&h1_pre);
+        let h1_drop = dropout1.forward(&h1, training, rng);
+
+        let h2_pre = self.fc2.forward(&h1_drop);
+        self.h2_pre_cache = Some(h2_pre.clone());
+        let h2 = relu(&h2_pre);
+        let h2_drop = dropout2.forward(&h2, training, rng);
+
+        self.fc3.forward(&h2_drop)
+    }
+
+    /// Backward with dropout. Call after forward_with_dropout.
+    pub fn backward_with_dropout(
+        &mut self,
+        grad_output: &Array2<f32>,
+        dropout1: &Dropout,
+        dropout2: &Dropout,
+    ) {
+        let grad_h2 = self.fc3.backward(grad_output);
+        let grad_h2_drop = dropout2.backward(&grad_h2);
+
+        let h2_pre = self.h2_pre_cache.as_ref().unwrap();
+        let grad_h2_pre = relu_backward(h2_pre, &grad_h2_drop);
+        let grad_h1 = self.fc2.backward(&grad_h2_pre);
+        let grad_h1_drop = dropout1.backward(&grad_h1);
+
+        let h1_pre = self.h1_pre_cache.as_ref().unwrap();
+        let grad_h1_pre = relu_backward(h1_pre, &grad_h1_drop);
+        let grad_input = self.fc1.backward(&grad_h1_pre);
+
+        let e = self.embed_dim;
+        let x = self.expr_dim;
+        let g_tf_emb = grad_input.slice(ndarray::s![.., 0..e]).to_owned();
+        let g_gene_emb = grad_input.slice(ndarray::s![.., e..2*e]).to_owned();
+        let g_interaction = grad_input.slice(ndarray::s![.., (2*e+2*x)..]).to_owned();
+
+        let tf_emb = self.tf_embed_cache.as_ref().unwrap();
+        let gene_emb = self.gene_embed_cache.as_ref().unwrap();
+        let total_g_tf = g_tf_emb + &(gene_emb * &g_interaction);
+        let total_g_gene = g_gene_emb + &(tf_emb * &g_interaction);
+
+        let tf_indices = self.tf_indices_cache.as_ref().unwrap();
+        let gene_indices = self.gene_indices_cache.as_ref().unwrap();
+        for (i, &idx) in tf_indices.iter().enumerate() {
+            let mut row = self.tf_embed_grad.row_mut(idx);
+            row += &total_g_tf.row(i);
+        }
+        for (i, &idx) in gene_indices.iter().enumerate() {
+            let mut row = self.gene_embed_grad.row_mut(idx);
+            row += &total_g_gene.row(i);
+        }
     }
 
     /// Backward pass. `grad_output` is [batch, 1] from bce_loss_backward.

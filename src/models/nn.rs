@@ -199,6 +199,45 @@ impl Dropout {
     }
 }
 
+/// Focal loss: FL(p_t) = -alpha_t * (1 - p_t)^gamma * log(p_t)
+/// Focuses learning on hard examples by down-weighting easy ones.
+/// `predictions` are raw logits [batch, 1]; sigmoid is applied internally.
+/// `gamma` controls focusing strength (0 = BCE, 2 = strong focus on hard examples).
+pub fn focal_loss(predictions: &Array2<f32>, targets: &Array1<f32>, gamma: f32) -> f32 {
+    let preds = sigmoid(predictions);
+    let eps = 1e-7;
+
+    let loss = targets.iter().zip(preds.iter()).map(|(&t, &p)| {
+        let p = p.clamp(eps, 1.0 - eps);
+        let p_t = if t == 1.0 { p } else { 1.0 - p };
+        let focal_weight = (1.0 - p_t).powf(gamma);
+        -focal_weight * p_t.ln()
+    }).sum::<f32>();
+
+    loss / targets.len() as f32
+}
+
+/// Focal loss gradient w.r.t. raw logits.
+/// Derivation: d/dz FL = sigmoid(z) - t  (BCE part)  *  focal modulation
+pub fn focal_loss_backward(predictions: &Array2<f32>, targets: &Array1<f32>, gamma: f32) -> Array2<f32> {
+    let preds = sigmoid(predictions);
+    let eps = 1e-7;
+    let batch_size = targets.len() as f32;
+
+    let mut grad = Array2::zeros(predictions.dim());
+    for (i, (&t, &p)) in targets.iter().zip(preds.iter()).enumerate() {
+        let p = p.clamp(eps, 1.0 - eps);
+        let p_t = if t == 1.0 { p } else { 1.0 - p };
+        let focal_weight = (1.0 - p_t).powf(gamma);
+        // Gradient includes the focal modulation + log-derivative correction
+        let log_term = -gamma * (1.0 - p_t).powf(gamma - 1.0) * p_t.ln();
+        let grad_val = focal_weight * (p - t) + log_term * (p - t);
+        grad[[i, 0]] = grad_val / batch_size;
+    }
+
+    grad
+}
+
 /// Binary cross-entropy loss
 pub fn bce_loss(predictions: &Array2<f32>, targets: &Array1<f32>) -> f32 {
     let preds = sigmoid(predictions);

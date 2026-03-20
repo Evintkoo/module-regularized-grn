@@ -18,6 +18,7 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use anyhow::Result;
 use std::collections::HashMap;
+use std::io::Write;
 
 // ── Adam state for HybridEmbeddingModel (two-tower) ──────────────────────────
 
@@ -403,6 +404,7 @@ fn run_two_tower(
 
     for &seed in &seeds {
         println!("  [TT] seed {}:", seed);
+        let _ = std::io::stdout().flush();
         let mut model = HybridEmbeddingModel::new(
             num_tfs, num_genes, embed_dim, expr_dim,
             hidden_dim, output_dim, temperature, 0.01, seed,
@@ -434,16 +436,21 @@ fn run_two_tower(
             }
 
             if (epoch + 1) % 10 == 0 || epoch == epochs - 1 {
-                let (val_acc, _, _, _) = eval_tt(
+                let (val_acc, val_auroc, _, _) = eval_tt(
                     &mut model, val_data, tf_expr_map, gene_expr_map, expr_dim, batch_size
                 );
+                print!("    ep {:2} val_acc={:.2}% val_auroc={:.4} patience={}/{}",
+                       epoch + 1, val_acc * 100.0, val_auroc, patience_counter, patience);
                 if val_acc > best_seed_val_acc {
                     best_seed_val_acc = val_acc;
                     patience_counter  = 0;
+                    println!(" ✓");
                 } else {
                     patience_counter += 1;
+                    println!();
                     if patience_counter >= patience { break; }
                 }
+                let _ = std::io::stdout().flush();
             }
         }
 
@@ -547,6 +554,7 @@ fn run_cross_encoder(
 
     for &seed in &seeds {
         println!("  [CE] seed {}:", seed);
+        let _ = std::io::stdout().flush();
         let mut model = CrossEncoderModel::new(num_tfs, num_genes, embed_dim, expr_dim, hidden_dim, seed);
         let mut state = AdamCE::new(&model);
         let mut best_seed_val_acc = 0.0f32;
@@ -574,16 +582,21 @@ fn run_cross_encoder(
             }
 
             if epoch % 5 == 0 || epoch == epochs - 1 {
-                let (val_acc, _, _, _) = eval_ce(
+                let (val_acc, val_auroc, _, _) = eval_ce(
                     &mut model, val_data, tf_expr_map, gene_expr_map, expr_dim, batch_size
                 );
+                print!("    ep {:2} val_acc={:.2}% val_auroc={:.4} patience={}/3",
+                       epoch + 1, val_acc * 100.0, val_auroc, patience);
                 if val_acc > best_seed_val_acc {
                     best_seed_val_acc = val_acc;
                     patience = 0;
+                    println!(" ✓");
                 } else {
                     patience += 1;
+                    println!();
                     if patience >= 3 { break; }
                 }
+                let _ = std::io::stdout().flush();
             }
         }
 

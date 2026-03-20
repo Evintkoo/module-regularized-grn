@@ -67,6 +67,50 @@ path = "src/bin/cross_encoder_pruning.rs"
 name = "generate_chapter_figures"
 path = "src/bin/generate_chapter_figures.rs"
 
+[[bin]]
+name = "train_embedding_only"
+path = "src/bin/train_embedding_only.rs"
+
+[[bin]]
+name = "ce_pruning_multiseed"
+path = "src/bin/ce_pruning_multiseed.rs"
+
+[[bin]]
+name = "lr_gridsearch"
+path = "src/bin/lr_gridsearch.rs"
+
+[[bin]]
+name = "train_tt_mlp_head"
+path = "src/bin/train_tt_mlp_head.rs"
+
+[[bin]]
+name = "train_extended_seeds"
+path = "src/bin/train_extended_seeds.rs"
+
+[[bin]]
+name = "train_inductive_eval"
+path = "src/bin/train_inductive_eval.rs"
+
+[[bin]]
+name = "train_tt_focal"
+path = "src/bin/train_tt_focal.rs"
+
+[[bin]]
+name = "train_tt_bilinear"
+path = "src/bin/train_tt_bilinear.rs"
+
+[[bin]]
+name = "effective_rank_analysis"
+path = "src/bin/effective_rank_analysis.rs"
+
+[[bin]]
+name = "train_with_curves"
+path = "src/bin/train_with_curves.rs"
+
+[[bin]]
+name = "train_dropout_ablation"
+path = "src/bin/train_dropout_ablation.rs"
+
 [dependencies]
 ndarray = { version = "0.15", features = ["rayon"] }
 ndarray-rand = "0.14"

@@ -1,0 +1,68 @@
+{
+  "note": "GRNBoost2 and GENIE3-style classical baselines for GRN edge prediction",
+  "dataset": {
+    "n_tfs": 1164,
+    "n_genes": 7664,
+    "n_positives": 23694,
+    "n_cell_types": 11,
+    "expression_genes": 2000,
+    "tf_expr_coverage_pct": 10.7,
+    "gene_expr_coverage_pct": 14.6
+  },
+  "split": {
+    "train": 33171,
+    "val": 7108,
+    "test": 7109,
+    "total": 47388,
+    "seed": 42,
+    "ratios": "70/15/15"
+  },
+  "test_set_size": 7109,
+  "grnboost2": {
+    "auroc": null,
+    "auprc": null,
+    "accuracy": null,
+    "f1": null,
+    "note": "GRNBoost2 requires many cells; only 11 pseudo-cells available (n_samples=11 << n_features=2000). Skipping to avoid degenerate/infeasible computation.",
+    "note_detail": "GRNBoost2 is designed for single-cell matrices with thousands of cells. With only 11 pseudo-cell-type profiles (n_samples << n_genes=2000), gradient-boosted tree models are degenerate and computation is infeasible."
+  },
+  "random_forest_genie3_style": {
+    "auroc": 0.5808578413098529,
+    "auprc": 0.5733520565375751,
+    "accuracy": 0.5500070333380223,
+    "f1": 0.48162545610547725,
+    "note": "RandomForestClassifier(n=200) on 22-dim [tf_expr|gene_expr] features; trained on training split (GENIE3-style concatenated expression)"
+  },
+  "classical_baselines": {
+    "majority_class": {
+      "auroc": 0.5,
+      "auprc": 0.49950766633844423,
+      "accuracy": 0.49950766633844423,
+      "f1": 0.3331144465290807
+    },
+    "logistic_regression": {
+      "auroc": 0.5703712023103802,
+      "auprc": 0.559150290139867,
+      "accuracy": 0.5439583626389084,
+      "f1": 0.4909003266914149
+    },
+    "random_forest": {
+      "auroc": 0.5808578413098529,
+      "auprc": 0.5733520565375751,
+      "accuracy": 0.5500070333380223,
+      "f1": 0.48162545610547725
+    },
+    "gradient_boosted_trees": {
+      "auroc": 0.5850504627899352,
+      "auprc": 0.5796025810501219,
+      "accuracy": 0.5522577015051343,
+      "f1": 0.4823796737515714
+    },
+    "xgboost": {
+      "auroc": 0.5827616428025643,
+      "auprc": 0.5786787640525087,
+      "accuracy": 0.5518357012238008,
+      "f1": 0.48133302372616804
+    }
+  }
+}
